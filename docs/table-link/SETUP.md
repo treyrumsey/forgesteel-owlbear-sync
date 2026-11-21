@@ -17,7 +17,7 @@ Everything a new session needs to start building the Forge Steel ⇄ Owlbear Rod
 | Docker | Installed (`/usr/local/bin/docker`); useful for a local Postgres and for building the `Dockerfile` |
 | Postgres client | Not installed (optional) |
 | Railway CLI | Not installed (not needed until deployment) |
-| Code written | None yet. Only these docs in `docs/table-link/` |
+| Code written | Phase 0 steps 1–2: [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md), `HeroSummaryLogic` in [`src/table-link/logic/`](../../src/table-link/logic/) and the `_tableLink` stamp tests ([`src/table-link/table-link-stamp.test.ts`](../../src/table-link/table-link-stamp.test.ts)). `npm run check`: 38 files and 810 tests pass; audit unchanged from the baseline |
 
 ### Node version
 
@@ -80,10 +80,23 @@ If `npm audit` fails on the untouched upstream code, note it as a baseline and d
 
 ## Next steps (Phase 0, the spike, in order)
 
-1. **Repo setup for Copilot:** add `.github/copilot-instructions.md` summarising the working rules and layout above.
-2. **First test (no accounts needed):** Vitest tests in new files under `src/table-link/` that:
+1. ✅ **Repo setup for Copilot:** add `.github/copilot-instructions.md` summarising the working rules and layout above.
+2. ✅ **First test (no accounts needed):** Vitest tests in new files under `src/table-link/` that:
    - compute the Owlbear summary with `HeroLogic` for sample heroes: max stamina, max recoveries, and the primary heroic resource by feature id. Include a Beastheart (Ferocity + Rampage), a Talent with negative Clarity, and a high-level hero with an epic resource;
    - prove a top-level `_tableLink: { rev }` field survives `Utils.copy`, `HeroUpdateLogic.updateHero`, and the save path. The report's merge design (§4.4) depends on this.
+
+   **Result:** both confirmed in Node.
+   - `HeroSummaryLogic.getSummary` gives the rules values:
+     - Fury 21 stamina / 10 recoveries;
+     - Beastheart 21 / 12 (129 stamina at level 10);
+     - Talent 18 / 8.
+   - It picks Ferocity (`beastheart-resource`) over Rampage (`beastheart-1-4`), keeps negative Clarity, and ignores the epic Ferox (`beastheart-10-4`).
+   - `_tableLink` survives:
+     - `Utils.copy` and `updateHero`;
+     - a Warehouse GET → load → edit → `DataManager.saveHero` PUT;
+     - a local save and reload.
+
+     Mutation checks (stripping the field in `updateHero`, `WarehouseService.putHero` or `LocalService.putHero`) make the tests fail, as they should.
 3. **Owlbear test:** a minimal extension in `obr-extension/`, served by Vite on localhost and added to the test room by manifest URL. Confirm:
    - writes to Draw Steel Tools' token data are accepted and Draw Steel Tools redraws them;
    - behaviour under each permission setting;
