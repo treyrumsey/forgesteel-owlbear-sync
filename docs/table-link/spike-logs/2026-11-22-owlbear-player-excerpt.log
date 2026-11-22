@@ -1,0 +1,38 @@
+Player client (TESTING_PLAYER_ACCOUNT), 22 Nov 2026, times in UTC. Key lines only; the room id is left out.
+The full GM log is in 2026-11-22-owlbear-gm.log.
+
+17:22:46.822 Ready in room <room id> as TESTING_PLAYER_ACCOUNT (PLAYER); owner only off
+17:22:46.826 Snapshot (opened): 1 Draw Steel Tools token(s)
+17:22:46.826   Charlie: stamina 39/100 temp 3, recoveries 6, surges 4, Clarity -3; last changed by GM
+17:23:11.976 DST change on Charlie by GM: gmOnly true -> false
+
+C1: owner only off, player writes the GM's token
+17:24:00.841 Write: expect allowed = true
+17:24:00.850 DST change on Charlie by you: stamina 39 -> 0
+17:24:00.852 Write: wrote stamina (11 ms)
+17:24:00.893 Write check immediately: OK; notes/gmOnly/button untouched; last changed by you
+17:24:02.395 Write check after 1500 ms: OK; notes/gmOnly/button untouched; last changed by you
+
+C2: owner only on
+17:24:34.045 Room permissions changed: owner only on, character updates allowed
+17:25:49.411 DST token appeared: Henge
+(player sets up Henge in Draw Steel Tools: 17:25:57 to 17:26:53)
+17:27:45.873 Write: expect allowed = false
+17:27:45.880 DST change on Charlie by you: stamina 0 -> 5
+17:27:45.883 Write: wrote stamina (9 ms)
+17:27:45.907 Write check immediately: OK; notes/gmOnly/button untouched; last changed by you
+17:27:47.409 Write check after 1500 ms: OK; notes/gmOnly/button untouched; last changed by you
+17:28:07.539 Write: expect allowed = true
+17:28:07.543 DST change on Henge by you: stamina undefined -> 5
+17:28:07.543 Write: wrote stamina (5 ms)
+17:28:07.551 Write check immediately: OK; notes/gmOnly/button untouched; last changed by you
+17:28:09.055 Write check after 1500 ms: OK; notes/gmOnly/button untouched; last changed by you
+
+D2: two-client burst on Henge (the player saw only its own increments, 0 -> 40, then one from the GM)
+17:29:55.677 Burst e995c65e on Henge: start stamina 0; 40 x +1 every 100 ms, one at a time, on every open client
+17:29:55.684 DST change on Henge by you: stamina 0 -> 1
+...          (39 more "by you" increments, ending 39 -> 40 at 17:30:00.075)
+17:30:00.380 DST change on Henge by GM: stamina 40 -> 41
+17:30:01.879 Burst e995c65e: final stamina 41, expected 80 from 2 client(s): 39 lost update(s)
+17:30:01.882   TESTING_PLAYER_ACCOUNT (you): 40 writes, 0 errors
+17:30:01.883   GM: 40 writes, 0 errors
