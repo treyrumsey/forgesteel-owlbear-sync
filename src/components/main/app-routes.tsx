@@ -23,6 +23,7 @@ const LibraryListPage = lazy(() => import('@/components/pages/library/library-li
 const LibraryPrintPage = lazy(() => import('@/components/pages/library/library-print/library-print-page').then(m => ({ default: m.LibraryPrintPage })));
 const SessionDirectorPage = lazy(() => import('@/components/pages/session/director/session-director-page').then(m => ({ default: m.SessionDirectorPage })));
 const SessionPlayerPage = lazy(() => import('@/components/pages/session/player/session-player-page').then(m => ({ default: m.SessionPlayerPage })));
+const SyncSteelPage = lazy(() => import('@/sync-steel/components/sync-steel-page').then(m => ({ default: m.SyncSteelPage })));
 const TransferPage = lazy(() => import('@/components/pages/transfer/transfer-page').then(m => ({ default: m.TransferPage })));
 const WelcomePage = lazy(() => import('@/components/pages/welcome/welcome-page').then(m => ({ default: m.WelcomePage })));
 
@@ -312,6 +313,7 @@ export const AppRoutes = (props: Props) => {
 						path='clocktower'
 						element={<ClocktowerPage params={footerParams} />}
 					/>
+					<Route path='sync-steel' element={<SyncSteelPage params={footerParams} connectionSettings={connectionSettings} persistConnectionSettings={persistConnectionSettings} />} />
 				</Route>
 				<Route
 					path='*'
