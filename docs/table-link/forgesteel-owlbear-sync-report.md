@@ -343,7 +343,15 @@ server → obr     ack       { editId, rev }  |  reject { editId, reason }
 
 Writes follow the pacing rules in §4.8, re-read the token immediately before writing, **patch only the synced Draw Steel Tools fields** (keeping `notes`, `gmOnly` and `heroicResourceButton`), and are checked afterwards.
 
+> **Spike results (22 Nov 2026,** [findings 6–7](./spike-results.md#6-owner-only-does-not-stop-extension-writes)**):**
+> - **Owner Only doesn't block extension metadata writes.** A player wrote the GM's token with Owner Only on, so step 2's creator check can go. The fallback writer is any connected client: whether removing Character **Update** blocks writes is untested.
+> - **Two clients writing one token at once lost 39 of 80 updates.** The election must therefore guarantee exactly one writer per token. Every client computes the same choice from `OBR.party`: a GM first, then the lowest connection id, which also breaks ties when the GM has two devices.
+
 **Token edits → server.** Only the client whose player matches `item.lastModifiedUserId` forwards a change, so each edit is sent once. The diff is taken against the last-synced snapshot and sent with `baseRev = syncedRev`.
+
+> **Spike results ([findings 8–9](./spike-results.md#8-dst-can-overwrite-our-write-made-milliseconds-earlier)):**
+> - Compare **values**, not serialised JSON: Draw Steel Tools re-saves with its keys reordered.
+> - A field that snaps back to its value from before our write, inside the verify window, is Draw Steel Tools overwriting our write, not a user edit. Re-assert our value rather than forwarding it.
 
 **Conditions:**
 - Stored in our key on the token.
@@ -360,8 +368,9 @@ Constraints:
 
 | Constraint | Response |
 |---|---|
-| The writing player's permissions apply to the whole token (`CHARACTER_UPDATE`, `CHARACTER_OWNER_ONLY`) | Elected-writer rule (§4.7) |
-| An update replaces the token's whole data object, so a write by Draw Steel Tools or Party Continuity in between can be lost | Pacing (§4.8), re-read before writing, skip unchanged writes, check afterwards and reconcile |
+| The writing player's permissions apply to the whole token (`CHARACTER_UPDATE`, `CHARACTER_OWNER_ONLY`) | Elected-writer rule (§4.7). The spike found Owner Only doesn't block SDK metadata writes |
+| An update replaces the token's whole data object, so a write by Draw Steel Tools or Party Continuity in between can be lost | Pacing (§4.8), re-read before writing, skip unchanged writes, check afterwards and reconcile. Measured in the spike: 1 of 40 lost to Draw Steel Tools clicks on the same client; 39 of 80 lost with two of our writers |
+| Owlbear rate-limits item updates to about 10/s per client (`RateLimitHit`) | Write budget and retry (§4.8) |
 | Draw Steel Tools **throws** on invalid data | Write only values that match its schema (finite numbers, valid strings); validate against our copy of the schema before writing |
 | The schema is undocumented and unversioned | Daily contract check against `tokenDataZod.ts` in Seamus's repo (§7). Fallbacks: ask Seamus for an API, fork Draw Steel Tools (GPL‑3), or draw our own trackers |
 
@@ -396,8 +405,12 @@ Constraints:
 - **Single-flight:** at most one write per token in flight at a time.
 - **Batch:** write all due tokens in **one** `updateItems` call.
 - **Diff on the fresh read:** compare against the values re-read in the updater and skip the write if nothing changed.
+- **Write budget** (spike [finding 5](./spike-results.md#5-owlbear-rate-limits-writes-per-client)):
+  - Owlbear accepts about **10 `updateItems` calls per second per client** and rejects the rest with `RateLimitHit`. Rejected writes are not applied.
+  - The writer keeps to about **3 calls/s**, leaving room for Draw Steel Tools and the GM's own clicks on the same client.
+  - On `RateLimitHit` it backs off about 1 s and retries with the latest values.
 
-**Expected latency:** roughly 0.7–3 s from Forge Steel to Owlbear and 0.8–3 s the other way.
+**Expected latency:** roughly 0.7–3 s from Forge Steel to Owlbear and 0.8–3 s the other way. In the spike, one client's change reached another in about 100 ms (80–670 ms).
 
 ### 4.9 Field mapping
 

@@ -1,0 +1,207 @@
+17:13:41.098 DST token appeared: Human Conduit
+17:14:25.306 DST change on Charlie by you: name undefined -> "Charlie"
+17:14:27.180 DST change on Charlie by you: staminaMaximum undefined -> 100
+17:14:32.546 DST change on Charlie by you: temporaryStamina undefined -> 10
+17:14:40.165 DST change on Charlie by you: heroicResourceName undefined -> "Focus"
+17:14:47.878 DST change on Charlie by you: heroicResource undefined -> 3
+17:14:47.959 DST change on Charlie by you: 
+17:14:52.611 DST change on Charlie by you: surges undefined -> 4
+17:14:52.697 DST change on Charlie by you: 
+17:15:00.302 DST change on Charlie by you: recoveries undefined -> 10
+17:15:00.421 DST change on Charlie by you: heroicResourceButton undefined -> "+2"
+17:15:00.495 DST change on Charlie by you: 
+17:15:13.258 DST change on Charlie by you: notes undefined -> "HERE ARE NOTES"
+17:15:13.343 DST change on Charlie by you: 
+17:15:50.135 DST change on Charlie by you: gmOnly undefined -> true
+17:15:50.502 DST change on Charlie by you: 
+17:16:28.424 Write: expect allowed = true
+17:16:28.431 DST change on Charlie by you: heroicResource 3 -> 4, stamina undefined -> 10
+17:16:28.431 Write: wrote stamina, heroicResource (7 ms)
+17:16:28.442 Write check immediately: OK; notes/gmOnly/button untouched; last changed by you
+17:16:29.948 Write check after 1500 ms: OK; notes/gmOnly/button untouched; last changed by you
+17:16:53.965 Talent sample: expect allowed = true
+17:16:53.970 DST change on Charlie by you: staminaMaximum 100 -> 18, temporaryStamina 10 -> 3, heroicResourceName "Focus" -> "Clarity", heroicResource 4 -> -3, surges 4 -> 1, recoveries 10 -> 6, stamina 10 -> -2
+17:16:53.971 Talent sample: wrote stamina, staminaMaximum, temporaryStamina, heroicResource, heroicResourceName, recoveries, surges (5 ms)
+17:16:53.983 Talent sample check immediately: OK; notes/gmOnly/button untouched; last changed by you
+17:16:55.489 Talent sample check after 1500 ms: OK; notes/gmOnly/button untouched; last changed by you
+17:17:25.094 Burst 2317782a on Charlie: start stamina -2; 20 x +1 every 50 ms, overlapping, on this client only
+17:17:25.098 DST change on Charlie by you: stamina -2 -> -1
+17:17:25.149 DST change on Charlie by you: stamina -1 -> 0
+17:17:25.201 DST change on Charlie by you: stamina 0 -> 1
+17:17:25.261 DST change on Charlie by you: stamina 1 -> 2
+17:17:25.303 DST change on Charlie by you: stamina 2 -> 3
+17:17:25.354 DST change on Charlie by you: stamina 3 -> 4
+17:17:25.406 DST change on Charlie by you: stamina 4 -> 5
+17:17:25.471 DST change on Charlie by you: stamina 5 -> 6
+17:17:25.519 DST change on Charlie by you: stamina 6 -> 7
+17:17:25.569 DST change on Charlie by you: stamina 7 -> 8
+17:17:25.611 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:25.671 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:25.713 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:25.764 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:25.816 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:25.867 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:25.918 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:25.970 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:26.024 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:26.076 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:27.629 Burst 2317782a: final stamina 8, expected 8 from 1 client(s): 0 lost update(s)
+17:17:27.632   GM (you): 10 writes, 10 errors
+17:17:33.510 Burst 24cf8cd8 on Charlie: start stamina 8; 20 x +1 every 50 ms, one at a time, on this client only
+17:17:33.516 DST change on Charlie by you: stamina 8 -> 9
+17:17:33.570 DST change on Charlie by you: stamina 9 -> 10
+17:17:33.625 DST change on Charlie by you: stamina 10 -> 11
+17:17:33.680 DST change on Charlie by you: stamina 11 -> 12
+17:17:33.734 DST change on Charlie by you: stamina 12 -> 13
+17:17:33.789 DST change on Charlie by you: stamina 13 -> 14
+17:17:33.844 DST change on Charlie by you: stamina 14 -> 15
+17:17:33.898 DST change on Charlie by you: stamina 15 -> 16
+17:17:33.958 DST change on Charlie by you: stamina 16 -> 17
+17:17:34.012 DST change on Charlie by you: stamina 17 -> 18
+17:17:34.065 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:34.118 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:34.171 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:34.224 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:34.278 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:34.330 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:34.383 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:34.437 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:34.490 Burst write failed: {"error":{"name":"RateLimitHit","message":"Too many requests"}}
+17:17:34.547 DST change on Charlie by you: stamina 18 -> 19
+17:17:36.105 Burst 24cf8cd8: final stamina 19, expected 19 from 1 client(s): 0 lost update(s)
+17:17:36.108   GM (you): 11 writes, 9 errors
+17:18:14.548 Write: expect allowed = true
+17:18:14.553 DST change on Charlie by you: staminaMaximum 18 -> 100
+17:18:14.561 Write: wrote staminaMaximum (12 ms)
+17:18:14.575 Write check immediately: OK; notes/gmOnly/button untouched; last changed by you
+17:18:16.077 Write check after 1500 ms: OK; notes/gmOnly/button untouched; last changed by you
+17:18:27.407 Write: expect allowed = true
+17:18:27.412 DST change on Charlie by you: stamina 19 -> 0
+17:18:27.417 Write: wrote stamina (9 ms)
+17:18:27.425 Write check immediately: OK; notes/gmOnly/button untouched; last changed by you
+17:18:28.927 Write check after 1500 ms: OK; notes/gmOnly/button untouched; last changed by you
+17:18:59.086 DST change on Charlie by you: surges 1 -> 0
+17:18:59.537 DST change on Charlie by you: 
+17:19:37.478 Burst cf5f72d7 on Charlie: start stamina 0; 40 x +1 every 100 ms, one at a time, on this client only
+17:19:37.488 DST change on Charlie by you: stamina 0 -> 1
+17:19:37.593 DST change on Charlie by you: stamina 1 -> 2
+17:19:37.699 DST change on Charlie by you: stamina 2 -> 3
+17:19:37.805 DST change on Charlie by you: stamina 3 -> 4
+17:19:37.910 DST change on Charlie by you: stamina 4 -> 5
+17:19:38.015 DST change on Charlie by you: stamina 5 -> 6
+17:19:38.119 DST change on Charlie by you: stamina 6 -> 7
+17:19:38.224 DST change on Charlie by you: stamina 7 -> 8
+17:19:38.329 DST change on Charlie by you: stamina 8 -> 9
+17:19:38.435 DST change on Charlie by you: stamina 9 -> 10
+17:19:38.540 DST change on Charlie by you: stamina 10 -> 11
+17:19:38.645 DST change on Charlie by you: stamina 11 -> 12
+17:19:38.768 DST change on Charlie by you: stamina 12 -> 13
+17:19:38.878 DST change on Charlie by you: stamina 13 -> 14
+17:19:38.986 DST change on Charlie by you: stamina 14 -> 15
+17:19:39.094 DST change on Charlie by you: stamina 15 -> 16
+17:19:39.211 DST change on Charlie by you: stamina 16 -> 17
+17:19:39.319 DST change on Charlie by you: stamina 17 -> 18
+17:19:39.425 DST change on Charlie by you: stamina 18 -> 19
+17:19:39.531 DST change on Charlie by you: stamina 19 -> 20
+17:19:39.649 DST change on Charlie by you: stamina 20 -> 21
+17:19:39.757 DST change on Charlie by you: stamina 21 -> 22
+17:19:39.862 DST change on Charlie by you: stamina 22 -> 23
+17:19:39.969 DST change on Charlie by you: stamina 23 -> 24
+17:19:40.060 DST change on Charlie by you: surges 0 -> 1
+17:19:40.086 DST change on Charlie by you: stamina 24 -> 25
+17:19:40.112 DST change on Charlie by you: 
+17:19:40.192 DST change on Charlie by you: stamina 25 -> 26
+17:19:40.297 DST change on Charlie by you: stamina 26 -> 27
+17:19:40.403 DST change on Charlie by you: stamina 27 -> 28
+17:19:40.467 DST change on Charlie by you: surges 1 -> 2
+17:19:40.488 DST change on Charlie by you: 
+17:19:40.512 DST change on Charlie by you: stamina 28 -> 29
+17:19:40.618 DST change on Charlie by you: stamina 29 -> 30
+17:19:40.732 DST change on Charlie by you: stamina 30 -> 31
+17:19:40.841 DST change on Charlie by you: stamina 31 -> 32
+17:19:40.947 DST change on Charlie by you: stamina 32 -> 33
+17:19:40.952 DST change on Charlie by you: surges 2 -> 3, stamina 33 -> 32
+17:19:41.030 DST change on Charlie by you: 
+17:19:41.054 DST change on Charlie by you: stamina 32 -> 33
+17:19:41.160 DST change on Charlie by you: stamina 33 -> 34
+17:19:41.267 DST change on Charlie by you: stamina 34 -> 35
+17:19:41.372 DST change on Charlie by you: stamina 35 -> 36
+17:19:41.442 DST change on Charlie by you: surges 3 -> 4
+17:19:41.463 DST change on Charlie by you: 
+17:19:41.487 DST change on Charlie by you: stamina 36 -> 37
+17:19:41.593 DST change on Charlie by you: stamina 37 -> 38
+17:19:41.699 DST change on Charlie by you: stamina 38 -> 39
+17:19:43.309 Burst cf5f72d7: final stamina 39, expected 40 from 1 client(s): 1 lost update(s)
+17:19:43.314   GM (you): 40 writes, 0 errors
+17:21:08.909 Clipboard blocked: the log is selected, press Cmd+C / Ctrl+C
+17:21:43.694 Scene closed
+17:21:43.702 Room permissions changed: owner only off, character updates allowed
+17:21:43.851 Room permissions changed: owner only off, character updates allowed
+17:21:44.595 Scene ready
+17:21:44.636 Snapshot (scene ready): 0 Draw Steel Tools token(s)
+17:21:49.300 Scene closed
+17:21:49.307 Room permissions changed: owner only off, character updates allowed
+17:21:49.390 Room permissions changed: owner only off, character updates allowed
+17:21:49.722 Scene ready
+17:21:49.729 DST token appeared: Charlie
+17:21:49.766 Snapshot (scene ready): 1 Draw Steel Tools token(s)
+17:21:49.768   Charlie: stamina 39/100 temp 3, recoveries 6, surges 4, Clarity -3; last changed by you
+17:23:11.427 DST change on Charlie by you: gmOnly true -> false
+17:23:11.959 DST change on Charlie by you: 
+17:24:01.521 DST change on Charlie by TESTING_PLAYER_ACCOUNT: stamina 39 -> 0
+17:24:33.811 Room permissions changed: owner only on, character updates allowed
+17:25:49.502 DST token appeared: Henge
+17:25:57.709 DST change on Henge by TESTING_PLAYER_ACCOUNT: heroicResource undefined -> 1
+17:26:09.871 DST change on Henge by TESTING_PLAYER_ACCOUNT: heroicResourceButton undefined -> "+2"
+17:26:30.414 DST change on Henge by TESTING_PLAYER_ACCOUNT: heroicResourceName undefined -> "Insight"
+17:26:36.127 DST change on Henge by TESTING_PLAYER_ACCOUNT: heroicResource 1 -> 2
+17:26:43.504 DST change on Henge by TESTING_PLAYER_ACCOUNT: temporaryStamina undefined -> 8
+17:26:47.205 DST change on Henge by TESTING_PLAYER_ACCOUNT: staminaMaximum undefined -> 200
+17:26:47.390 DST change on Henge by TESTING_PLAYER_ACCOUNT: name undefined -> "Henge"
+17:26:53.929 DST change on Henge by TESTING_PLAYER_ACCOUNT: notes undefined -> "Henge's notes"
+17:27:46.215 DST change on Charlie by TESTING_PLAYER_ACCOUNT: stamina 0 -> 5
+17:28:07.651 DST change on Henge by TESTING_PLAYER_ACCOUNT: stamina undefined -> 5
+17:28:22.438 DST change on Henge by TESTING_PLAYER_ACCOUNT: stamina 5 -> 0
+17:29:55.712 Burst e995c65e requested by TESTING_PLAYER_ACCOUNT: running 40 writes
+17:29:55.736 DST change on Henge by you: stamina 0 -> 1
+17:29:55.843 DST change on Henge by you: stamina 1 -> 2
+17:29:55.950 DST change on Henge by you: stamina 2 -> 3
+17:29:56.058 DST change on Henge by you: stamina 3 -> 4
+17:29:56.182 DST change on Henge by you: stamina 4 -> 5
+17:29:56.295 DST change on Henge by you: stamina 5 -> 6
+17:29:56.406 DST change on Henge by you: stamina 6 -> 7
+17:29:56.521 DST change on Henge by you: stamina 7 -> 8
+17:29:56.632 DST change on Henge by you: stamina 8 -> 9
+17:29:56.742 DST change on Henge by you: stamina 9 -> 10
+17:29:56.848 DST change on Henge by you: stamina 10 -> 11
+17:29:56.958 DST change on Henge by TESTING_PLAYER_ACCOUNT: stamina 11 -> 12
+17:29:57.070 DST change on Henge by you: stamina 12 -> 13
+17:29:57.094 DST change on Henge by you: stamina 13 -> 14
+17:29:57.202 DST change on Henge by you: stamina 14 -> 15
+17:29:57.324 DST change on Henge by you: stamina 15 -> 16
+17:29:57.441 DST change on Henge by you: stamina 16 -> 17
+17:29:57.563 DST change on Henge by you: stamina 17 -> 18
+17:29:57.677 DST change on Henge by you: stamina 18 -> 19
+17:29:57.787 DST change on Henge by you: stamina 19 -> 20
+17:29:57.899 DST change on Henge by you: stamina 20 -> 21
+17:29:58.016 DST change on Henge by you: stamina 21 -> 22
+17:29:58.129 DST change on Henge by you: stamina 22 -> 23
+17:29:58.235 DST change on Henge by you: stamina 23 -> 24
+17:29:58.357 DST change on Henge by you: stamina 24 -> 25
+17:29:58.472 DST change on Henge by you: stamina 25 -> 26
+17:29:58.585 DST change on Henge by you: stamina 26 -> 27
+17:29:58.691 DST change on Henge by you: stamina 27 -> 28
+17:29:58.820 DST change on Henge by you: stamina 28 -> 29
+17:29:58.936 DST change on Henge by you: stamina 29 -> 30
+17:29:59.049 DST change on Henge by you: stamina 30 -> 31
+17:29:59.164 DST change on Henge by you: stamina 31 -> 32
+17:29:59.271 DST change on Henge by you: stamina 32 -> 33
+17:29:59.378 DST change on Henge by you: stamina 33 -> 34
+17:29:59.486 DST change on Henge by you: stamina 34 -> 35
+17:29:59.603 DST change on Henge by you: stamina 35 -> 36
+17:29:59.715 DST change on Henge by you: stamina 36 -> 37
+17:29:59.822 DST change on Henge by you: stamina 37 -> 38
+17:29:59.937 DST change on Henge by you: stamina 38 -> 39
+17:30:00.044 DST change on Henge by you: stamina 39 -> 40
+17:30:00.151 DST change on Henge by you: stamina 40 -> 41
+17:30:00.256 Burst e995c65e: sent 40 writes, 0 errors

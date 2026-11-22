@@ -50,6 +50,11 @@ This repo is a **public fork of [`andyaiken/forgesteel`](https://github.com/andy
   - Patch only the synced fields; keep `notes`, `gmOnly` and `heroicResourceButton` untouched.
   - Build DST data only through `obr-extension/src/dst-token.ts`.
   - Keep our own token data under our own key: DST drops unknown keys from its object whenever it writes.
+- **Owlbear writes** (spike findings 5–9 in `docs/table-link/spike-results.md`):
+  - Exactly one client may write a given token; two concurrent writers lost about half their updates.
+  - Stay well under Owlbear's limit of about 10 `updateItems` calls/s per client: batch writes, and retry on `RateLimitHit`.
+  - Detect changes by comparing values, not JSON.
+  - Owner Only does not block SDK writes.
 - **Heroic resource:** the primary resource is the first `type === 'heroic'` entry of `HeroLogic.getHeroicResources`. Read and write it **by feature id** (`data.value`), as `hero-resources-modal.tsx` does.
 - **Revision stamp:** the server stamps `_tableLink: { rev }` at the top level of each hero. Upstream keeps unknown top-level fields; `src/table-link/table-link-stamp.test.ts` guards that.
   - Forge Steel ignores PUT responses, so a client keeps its load-time stamp.

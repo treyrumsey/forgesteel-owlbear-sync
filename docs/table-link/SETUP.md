@@ -18,7 +18,7 @@ Everything a new session needs to start building the Forge Steel ⇄ Owlbear Rod
 | Postgres client | Not installed (optional) |
 | Railway CLI | Not installed (not needed until deployment) |
 | Code written | Phase 0 code is done; results are in [spike-results.md](./spike-results.md).<br>• [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md).<br>• `HeroSummaryLogic` and the `_tableLink` tests in [`src/table-link/`](../../src/table-link/).<br>• The stub Warehouse in [`server/`](../../server/).<br>• The Owlbear spike extension in [`obr-extension/`](../../obr-extension/).<br>`npm run check` runs all of their tests: lint, tsc and vitest pass; the audit is unchanged from the baseline. |
-| Waiting on you | The Owlbear tests (runbook in [spike-results.md](./spike-results.md#owlbear-runbook-manual)): an Owlbear account, a test room with Draw Steel Tools, and a second account as a player |
+| Still open (optional) | E2, the Party Continuity stale-restore test (needs a paid membership); C3, player writes with Character Update removed; the Transfer page with homebrew; hero export/import. None blocks Phase 1 |
 
 ### Node version
 
@@ -118,14 +118,20 @@ To connect the fork (or forgesteel.net) to a Warehouse:
      - a local save and reload.
 
      Mutation checks (stripping the field in `updateHero`, `WarehouseService.putHero` or `LocalService.putHero`) make the tests fail, as they should.
-3. 🟡 **Owlbear test:** a minimal extension in `obr-extension/`, served by Vite on localhost and added to the test room by manifest URL. Confirm:
+3. ✅ **Owlbear test:** a minimal extension in `obr-extension/`, served by Vite on localhost and added to the test room by manifest URL. Confirm:
    - writes to Draw Steel Tools' token data are accepted and Draw Steel Tools redraws them;
    - behaviour under each permission setting;
    - fast-repeated click and scene-switch bursts, counting lost updates.
 
-   **Status:**
-   - Built and verified outside Owlbear: build, type check, tests, and manifest CORS.
-   - The **hands-on tests in a room are waiting on you**: follow the [runbook](./spike-results.md#owlbear-runbook-manual).
+   **Result (22 Nov, GM + player accounts):**
+   - **Writes:** accepted, verified and displayed, with Draw Steel Tools' own settings untouched.
+   - **Owner Only** doesn't block extension writes.
+   - **Two writers on one token** lose about half the updates, so the single elected writer is confirmed as essential.
+   - **Rate limit:** Owlbear allows about **10 writes/s per client**.
+   - **Draw Steel Tools clicks** can overwrite a write made milliseconds earlier (1 of 40).
+   - **Scene switches** cause no rewrites.
+
+   Details are in [spike-results.md](./spike-results.md#manual-results), findings 5–9; the design changes are noted in report §4.7–4.8. E2 (Party Continuity) is deferred.
 4. ✅ **Stub backend:** a minimal Warehouse-compatible server in `server/` that the fork's local dev server can connect to. Check:
    - `/healthz` returns `{"version":"1.x"}`;
    - `/connect` works through the CORS credentials preflight;
@@ -135,7 +141,9 @@ To connect the fork (or forgesteel.net) to a Warehouse:
    - All three checks pass, in tests and in a real browser.
    - Upstream's unmodified `WarehouseService` works against the stub, including refresh-and-retry.
    - The real UI carries the `_tableLink` stamp. That surfaced a merge-base refinement: [finding 2](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base).
-5. 🟡 Results are in [`spike-results.md`](./spike-results.md); paste the Owlbear logs there. Then start Phase 1 (report §11).
+5. ✅ Results are recorded in [`spike-results.md`](./spike-results.md), with raw logs in [`spike-logs/`](./spike-logs/). **Next: Phase 1** (report §11), the backend storage MVP, with the spike's refinements:
+   - the merge base also uses the session's last write;
+   - the elected writer works within a write budget.
 
 ## Notes
 
