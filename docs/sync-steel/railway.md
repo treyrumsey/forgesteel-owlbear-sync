@@ -25,6 +25,9 @@ railway environment edit --json <<'JSON'
 JSON
 railway domain --service fs-web --port 80               # the generated domain
 railway domain syncsteel.app --service fs-web --port 80 # bought through Railway: DNS and verification are automatic
+railway environment edit --json <<'JSON'   # after Phase 2 merged: deploy main once CI passes
+{"services":{"3b8d58cf-ca8a-4cc1-b5cb-b5bb16deee92":{"source":{"repo":"treyrumsey/forgesteel-owlbear-sync","branch":"main","checkSuites":true}}}}
+JSON
 railway variable set "CORS_ORIGINS=https://syncsteel.app,https://fs-web-production-33b435c3.up.railway.app,http://localhost:5173,http://127.0.0.1:5173" --service api
 ```
 
@@ -54,11 +57,14 @@ Each deploy restarts the service. The api is down for a few seconds (it has a vo
 
 ## Resetting the api's database
 
-**This deletes every room, hero, revision and snapshot. Take a GM export first if anything matters.**
+**This empties every room for the app. Take a GM export first if anything matters.**
+
+**Without SSH (how go-live did it, 22 Nov 2026):** point the api at a new database file and snapshot folder on the same volume. The old files stay on the volume, unused, so switching the variables back undoes it.
 
 ```bash
-railway ssh --service api -- sh -c 'rm -f /data/sync-steel.db /data/sync-steel.db-wal /data/sync-steel.db-shm && rm -rf /data/snapshots'
-railway restart --service api
+railway variable set DATABASE_PATH=/data/sync-steel-live.db SNAPSHOT_DIR=/data/snapshots-live --service api
 ```
 
-The server recreates an empty database on start. Devices that had joined then stop at Forge Steel's data load error; see the [how-to](./how-to.md#players-a-new-or-lost-device).
+The server creates the empty database on start. The pre-go-live files (`/data/sync-steel.db`, `/data/snapshots/`) hold only test rooms and can be deleted once SSH is set up (`railway ssh keys github`, then `railway ssh --service api`).
+
+Devices that had joined stop at Forge Steel's data load error; see the [how-to](./how-to.md#players-a-new-or-lost-device).

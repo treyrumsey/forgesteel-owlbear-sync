@@ -12,7 +12,7 @@ Everything a new session needs to work on Sync Steel, the Forge Steel ⇄ Owlbea
 |---|---|
 | Fork | [`treyrumsey/forgesteel-owlbear-sync`](https://github.com/treyrumsey/forgesteel-owlbear-sync), public, linked to `andyaiken/forgesteel` |
 | Local clone | `~/dev/forgesteel-owlbear-sync`. Remotes: `origin` (your fork) and `upstream` (`git@github.com:andyaiken/forgesteel.git`) |
-| Branches | **`main`** holds Phases 0 and 1 (PRs #1 and #2), on top of upstream `3c6b4ab` ("Dice false", 20 Nov 2026).<br>**Phase 2** is on `sync-steel/phase-2`.<br>Work on **one branch per phase off `main`** and merge back by PR **with a merge commit**; never squash or rebase. `gh pr create` defaults to upstream, so pass `--repo treyrumsey/forgesteel-owlbear-sync` |
+| Branches | **`main`** holds Phases 0 and 1 (PRs #1 and #2), on top of upstream `3c6b4ab` ("Dice false", 20 Nov 2026).<br>**Phase 2** merged in PR #3 (`sync-steel/phase-2`).<br>`main` has a ruleset requiring the `check` status, with no force-pushes or deletion, and auto-merge is allowed.<br>Work on **one branch per phase off `main`** and merge back by PR **with a merge commit**; never squash or rebase. `gh pr create` defaults to upstream, so pass `--repo treyrumsey/forgesteel-owlbear-sync` |
 | Name | **Sync Steel** (it was "Table Link" until Phase 1; see [decisions](./decisions.md#name-sync-steel)) |
 | Dependencies | Installed with `npm ci`, `npm ci --prefix server` and `npm ci --prefix obr-extension` on Node 26 |
 | Node | **v26.13.1 "Lithium"**, the latest stable release and the Active LTS. It's the nvm `default`. It satisfies `engines.node >= 24`. See [Node version](#node-version) |
@@ -32,11 +32,11 @@ Everything a new session needs to work on Sync Steel, the Forge Steel ⇄ Owlbea
 | Project | `sync-steel` (`5726124d-ee72-45a4-9063-d4e99ca74c30`), environment `production` (`847cb03a-42c1-44ee-a97c-0e86e9d12741`) |
 | Services | `api` (`00e960ac-ff05-4d56-8b99-84789a92f9a9`): `server/Dockerfile`, watch paths `server/**`. Setup commands in [server/README.md](../../server/README.md#railway).<br>`fs-web` (`3b8d58cf-ca8a-4cc1-b5cb-b5bb16deee92`): `Dockerfile.sync-steel`, watch paths `**` minus `server/`, `obr-extension/`, `docs/`. Setup commands in [railway.md](./railway.md).<br>Both: health check `/healthz`, no sleeping, deploy `main` with "Wait for CI" |
 | Addresses | Web app **`https://syncsteel.app`** (bought through Railway; also `https://fs-web-production-33b435c3.up.railway.app`).<br>api **`https://api-production-d612ac15.up.railway.app`** (generated; players never type it) |
-| Volume | `api-volume` at `/data` (volume instance `3d1716a9-e86a-4bc6-8caf-813e80c327db`). Database `/data/sync-steel.db`; daily snapshots in `/data/snapshots/`, last 14 kept |
-| Variables | `JWT_SECRET`, `JWT_REFRESH_SECRET` and `TOKEN_HASH_KEY` (random, never printed), plus `DATABASE_PATH`, `TRUST_PROXY=1`, `MAX_ROOMS=10` and `CORS_ORIGINS` (`https://syncsteel.app`, the fs-web generated domain, and localhost dev).<br>fs-web: `FORGESTEEL_SYNC_STEEL_API_HOST` (the api's address) and `PORT=80` |
+| Volume | `api-volume` at `/data` (volume instance `3d1716a9-e86a-4bc6-8caf-813e80c327db`). Database `/data/sync-steel-live.db`; daily snapshots in `/data/snapshots-live/`, last 14 kept. The pre-go-live files (`/data/sync-steel.db`, `/data/snapshots/`) hold only test rooms; see [railway.md](./railway.md#resetting-the-apis-database) |
+| Variables | `JWT_SECRET`, `JWT_REFRESH_SECRET` and `TOKEN_HASH_KEY` (random, never printed), plus `DATABASE_PATH=/data/sync-steel-live.db`, `SNAPSHOT_DIR=/data/snapshots-live`, `TRUST_PROXY=1`, `MAX_ROOMS=10` and `CORS_ORIGINS` (`https://syncsteel.app`, the fs-web generated domain, and localhost dev).<br>fs-web: `FORGESTEEL_SYNC_STEEL_API_HOST` (the api's address) and `PORT=80` |
 | Backups | **Railway's volume backups need a Pro workspace**, and this one isn't Pro. The server's daily snapshots and the GM export replace them; see [decisions](./decisions.md#durability-railway-backups-need-a-pro-workspace) |
 | Deploys | Pushing to `main` deploys whichever service the change touches, once CI passes. Each api deploy restarts it for a few seconds, so deploy outside play sessions |
-| Test data | The Phase 1 drill left one room, **"Sync Steel test (Phase 1 drill)"**, with every device revoked. It's inert and uses 1 of the 10 room slots |
+| Production data | Reset for go-live on 22 Nov 2026 (fresh database file). The group's real room starts here |
 
 ### Node version
 
@@ -145,6 +145,15 @@ Branch `sync-steel/phase-2`. Every decision is in [decisions.md](./decisions.md#
    - Tests: the page's api client against the real server (create, join, the GM key, revoke, token renewal, export, dry-run and real import, snapshots); branding against upstream's real `index.html`; the contract tests.
    - Locally, in the browser: create a room, a second "device" joins and adds a hero, the GM sees it and disconnects the device, the device recovers from the data load error and rejoins its seat, and the hero comes back.
    - The image (`docker build -f Dockerfile.sync-steel .`): `/healthz`, deep links, the manifest, and the api address filled in at startup.
+   - Deployed, against production: a GM created a room on the generated domain, a player joined on https://syncsteel.app and added a hero, and the GM saw it.
+7. ✅ **Go-live (22 Nov 2026):**
+   - PR #3 merged;
+   - `fs-web` deploys `main` with "Wait for CI";
+   - `main`'s ruleset requires `check`, and auto-merge is allowed;
+   - `SYNC_STEEL_UPSTREAM_TOKEN` is set, and a manual run of the upstream sync passed;
+   - production reset to a fresh database file.
+
+   **Still open:** installing on an iPad from the home screen.
 
 ## Phase 1, the backend storage MVP (done)
 
