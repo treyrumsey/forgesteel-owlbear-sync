@@ -5,7 +5,7 @@ The spike checks the riskiest assumptions in the [research report](./forgesteel-
 **Status (22 Nov 2026):**
 - Everything that can run without an Owlbear account is done and passing.
 - The Owlbear tests (A–E1) were run on 22 Nov with a GM and a player account. Results are under [Manual results](#manual-results) and findings 5–9.
-- Still open: **E2** (Party Continuity, deferred), the optional **C3**, Transfer, and export/import.
+- Still open: **E2** (Party Continuity, deferred) and the optional **C3**. Transfer and export/import were settled in Phase 1 (see the checklist).
 
 **Versions tested:**
 - Node 26.13.1;
@@ -27,7 +27,8 @@ The spike checks the riskiest assumptions in the [research report](./forgesteel-
 | Room permissions (`CHARACTER_OWNER_ONLY`) for player writes | ✅, with a surprise | A player's extension wrote the **GM's** token with Owner Only **on**, and the GM saw it. See [finding 6](#6-owner-only-does-not-stop-extension-writes). |
 | Lost updates when writes collide | ✅ measured | • One client: 0 lost.<br>• **Two clients on one token: 39 of 80 lost.**<br>• DST clicks during a burst: 1 of 40 lost.<br>• Owlbear **rate-limits** about 10 writes/s per client.<br>See findings [5](#5-owlbear-rate-limits-writes-per-client), [7](#7-two-writers-on-one-token-lose-about-half-the-updates) and [8](#8-dst-can-overwrite-our-write-made-milliseconds-earlier). |
 | Party Continuity stale restore | Deferred | E2 not run yet. Without Party Continuity, a scene switch caused no DST rewrites (E1). |
-| Transfer page moves homebrew | ⏳ manual | Not tried yet (see the browser steps under [Reproducing](#reproducing-the-browser-checks)). |
+| Transfer page moves homebrew | Dropped | No longer needed. Players import `.ds-hero` and `.ds-sourcebook` files into the fork instead ([decisions](./decisions.md#onboarding-json-import-not-a-forgesteelnet-migration)). Phase 1 checked that the real fork, in headless Chrome, uploads an imported hero file straight to the deployed server. |
+| Hero export/import keeps `_syncSteel` | ✅ (Phase 1) | Export writes `JSON.stringify(hero)`, so the stamp is in the file. Import runs `HeroUpdateLogic.updateHero` and the save path, which the stamp tests cover. |
 | iPad WebSocket resume | Later | No WebSocket until Phase 3. |
 | Trial merge of the module onto upstream head | Later | Nothing in upstream files is changed yet (new files only). |
 
@@ -196,4 +197,4 @@ Then in the fork:
 
 The stub logs each hero save with its stamp, the session's last write and the base it would merge against.
 
-**Still to try:** Transfer (Local → Warehouse) with a homebrew-dependent hero, and hero export/import with a stamped hero.
+These steps used the Phase 0 stub. The Phase 1 server works the same way with `DEV_SEED=1 npm start --prefix server` (after `npm ci --prefix server`).

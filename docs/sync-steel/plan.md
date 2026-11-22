@@ -2,7 +2,15 @@
 
 > **Status 2026‑11‑21:** research and design are complete. The full write-up is in [forgesteel-owlbear-sync-report.md](./forgesteel-owlbear-sync-report.md). Where this plan and the report differ, **the report wins**; for example, the report's §4.4 has the authoritative merge design (a revision stamp kept inside the hero JSON).
 > **Repo:** public fork [`treyrumsey/forgesteel-owlbear-sync`](https://github.com/treyrumsey/forgesteel-owlbear-sync) of `andyaiken/forgesteel`, cloned at `~/dev/forgesteel-owlbear-sync`. Setup steps and next actions are in [SETUP.md](./SETUP.md).
-> Phase 0 (the spike) is done and merged to `main` (22 Nov 2026): results are in [spike-results.md](./spike-results.md). **Next: Phase 1, the backend storage MVP**; see [SETUP.md](./SETUP.md#next-phase-1-the-backend-storage-mvp).
+> Phase 0 (the spike) is done and merged to `main` (22 Nov 2026): results are in [spike-results.md](./spike-results.md).
+> **Phase 1 (the backend storage MVP) is done** (22 Nov 2026), with decisions that change parts of this plan; see [decisions.md](./decisions.md). In short:
+> - SQLite on a Railway volume, not Postgres;
+> - HMAC-hashed secrets;
+> - no forgesteel.net support;
+> - players import hero files into the fork instead of using the Transfer page;
+> - daily snapshots, because Railway's backups need Pro.
+>
+> **Next: Phase 2**; see [SETUP.md](./SETUP.md#next-phase-2-the-fork-goes-live).
 
 ## Problem
 A home group builds heroes in **Forge Steel** (FS, React PWA, GPL‑3) and plays on **Owlbear Rodeo** (OBR) with **Draw Steel Tools 2** (DST, GPL‑3), which tracks hero stats on tokens. Two goals:

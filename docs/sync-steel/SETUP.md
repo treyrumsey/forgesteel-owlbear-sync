@@ -1,8 +1,8 @@
 # Setup and handoff
 
-Everything a new session needs to work on the Forge Steel ⇄ Owlbear Rodeo sync.
-- **Starting Phase 1?** Begin at [Next: Phase 1](#next-phase-1-the-backend-storage-mvp).
-- Background is in [plan.md](./plan.md) and the [research report](./forgesteel-owlbear-sync-report.md). The report wins where they differ.
+Everything a new session needs to work on Sync Steel, the Forge Steel ⇄ Owlbear Rodeo sync.
+- **Starting Phase 2?** Begin at [Next: Phase 2](#next-phase-2-the-fork-goes-live).
+- Decisions made since the report are in [decisions.md](./decisions.md). Background is in [plan.md](./plan.md) and the [research report](./forgesteel-owlbear-sync-report.md); the report wins over the plan, and decisions.md wins over both.
 - Phase 0 results are in [spike-results.md](./spike-results.md).
 
 ## Current state (22 Nov 2026)
@@ -11,23 +11,37 @@ Everything a new session needs to work on the Forge Steel ⇄ Owlbear Rodeo sync
 |---|---|
 | Fork | [`treyrumsey/forgesteel-owlbear-sync`](https://github.com/treyrumsey/forgesteel-owlbear-sync), public, linked to `andyaiken/forgesteel` |
 | Local clone | `~/dev/forgesteel-owlbear-sync`. Remotes: `origin` (your fork) and `upstream` (`git@github.com:andyaiken/forgesteel.git`) |
-| Branch | **`main`** holds Phase 0, merged from `table-link/spike` on 22 Nov 2026, on top of upstream `3c6b4ab` ("Dice false", 20 Nov 2026). Work on **one branch per phase off `main`** (next: `sync-steel/phase-1`) and merge back by PR **with a merge commit**; never squash or rebase |
-| Dependencies | Installed with `npm ci` on Node 26 |
+| Branches | **`main`** holds Phase 0, merged from `table-link/spike` on 22 Nov 2026, on top of upstream `3c6b4ab` ("Dice false", 20 Nov 2026).<br>**Phase 1** is on `sync-steel/phase-1`: [PR #2](https://github.com/treyrumsey/forgesteel-owlbear-sync/pull/2), ready for review.<br>Work on **one branch per phase off `main`** and merge back by PR **with a merge commit**; never squash or rebase. `gh pr create` defaults to upstream, so pass `--repo treyrumsey/forgesteel-owlbear-sync` |
+| Name | **Sync Steel** (it was "Table Link" until Phase 1; see [decisions](./decisions.md#name-sync-steel)) |
+| Dependencies | Installed with `npm ci`, `npm ci --prefix server` and `npm ci --prefix obr-extension` on Node 26 |
 | Node | **v26.13.1 "Lithium"**, the latest stable release and the Active LTS. It's the nvm `default`. It satisfies `engines.node >= 24`. See [Node version](#node-version) |
 | nvm | v0.41.0 at `~/.nvm`, upgraded from 0.25.1 (2015), which couldn't list LTS or recent releases |
-| Baseline `npm run check` | lint ✅, tsc ✅, vitest ✅ (36 files, 799 tests). `npm audit` ❌: 12 moderate advisories, all in dev tooling (`eslint`, `typescript-eslint`, `vite-plugin-pwa`, `workbox-build` via `glob`/`minimatch`: GHSA-3g3m-2fjr-6pw4, GHSA-g3hv-75wg-m249). `npm audit --omit=dev` finds 0. Upstream baseline; **don't fix in the fork** |
+| `npm run check` | lint ✅, tsc ✅, vitest ✅ (49 files, 883 tests: upstream's 799 plus 84 of ours). `npm audit` ❌: the upstream baseline of 12 moderate advisories, all in dev tooling (`eslint`, `typescript-eslint`, `vite-plugin-pwa`, `workbox-build` via `glob`/`minimatch`: GHSA-3g3m-2fjr-6pw4, GHSA-g3hv-75wg-m249). `npm audit --omit=dev` finds 0. **Don't fix it in the fork.** Our CI audits `server/` and `obr-extension/` instead (both clean) |
+| CI | [`sync-steel-ci.yml`](../../.github/workflows/sync-steel-ci.yml) runs on pushes and PRs to `main`. Upstream's two workflows stay disabled (see [Notes](#notes)) |
+| Backend | **Deployed on Railway** (see [Railway](#railway)): SQLite on a volume, rooms, seats, device tokens, revisions, GM export, import and snapshots. No players use it yet; they start in Phase 2 |
 | GitHub CLI | Signed in as `treyrumsey`, version 2.105.0 |
-| Docker | Installed (`/usr/local/bin/docker`); useful for a local Postgres and for building the `Dockerfile` |
-| Postgres client | Not installed (optional) |
-| Railway CLI | v5.75.0, installed with Railway's own installer (**not** Homebrew) at `~/.railway/bin/railway`, and logged in. `~/.zshrc` adds it to `PATH` by sourcing `~/.railway/env`. Agent and other non-interactive shells skip `~/.zshrc`, so run `. ~/.railway/env` first (as with `. ~/.nvm/nvm.sh`). Update it the same way it was installed, not with `brew` |
-| Code written | Phase 0 code is done; results are in [spike-results.md](./spike-results.md).<br>• [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md).<br>• `HeroSummaryLogic` and the `_syncSteel` tests in [`src/sync-steel/`](../../src/sync-steel/).<br>• The stub Warehouse in [`server/`](../../server/).<br>• The Owlbear spike extension in [`obr-extension/`](../../obr-extension/).<br>`npm run check` runs all of their tests: lint, tsc and vitest pass; the audit is unchanged from the baseline. |
-| Still open (optional) | E2, the Party Continuity stale-restore test (needs a paid membership); C3, player writes with Character Update removed; the Transfer page with homebrew; hero export/import. None blocks Phase 1 |
+| Docker | Installed (OrbStack); the daemon isn't usually running. Railway builds `server/Dockerfile` itself |
+| Railway CLI | v5.75.0, installed with Railway's own installer (**not** Homebrew) at `~/.railway/bin/railway`, and logged in. `~/.zshrc` adds it to `PATH` by sourcing `~/.railway/env`. Agent and other non-interactive shells skip `~/.zshrc`, so run `. ~/.railway/env` first (as with `. ~/.nvm/nvm.sh`). Update it the same way it was installed, not with `brew`. This directory is linked to the `sync-steel` project and its `api` service |
+| Still open (optional) | E2, the Party Continuity stale-restore test (needs a paid membership); C3, player writes with Character Update removed |
+
+### Railway
+
+| Item | Value |
+|---|---|
+| Project | `sync-steel` (`5726124d-ee72-45a4-9063-d4e99ca74c30`), environment `production` (`847cb03a-42c1-44ee-a97c-0e86e9d12741`) |
+| Service | `api` (`00e960ac-ff05-4d56-8b99-84789a92f9a9`): Dockerfile `server/Dockerfile` built from the repo root, watch paths `server/**`, health check `/healthz`, no sleeping. Settings commands are in [server/README.md](../../server/README.md#railway) |
+| Address | **`https://api-production-d612ac15.up.railway.app`** (a generated domain; Phase 2 may add a custom one) |
+| Volume | `api-volume` at `/data` (volume instance `3d1716a9-e86a-4bc6-8caf-813e80c327db`). Database `/data/sync-steel.db`; daily snapshots in `/data/snapshots/`, last 14 kept |
+| Variables | `JWT_SECRET`, `JWT_REFRESH_SECRET` and `TOKEN_HASH_KEY` (random, never printed), plus `DATABASE_PATH`, `TRUST_PROXY=1`, `MAX_ROOMS=10` and `CORS_ORIGINS` (localhost dev only; Phase 2 adds the fork's domain) |
+| Backups | **Railway's volume backups need a Pro workspace**, and this one isn't Pro. The server's daily snapshots and the GM export replace them; see [decisions](./decisions.md#durability-railway-backups-need-a-pro-workspace) |
+| Deploys | So far with `railway up --service api --ci` from the repo root. **After PR #2 merges,** connect the service to the repo's `main` branch with "Wait for CI" in the dashboard (connecting it earlier would deploy `main`'s old stub). Each deploy restarts the api for a few seconds, so deploy outside play sessions |
+| Test data | The Phase 1 drill left one room, **"Sync Steel test (Phase 1 drill)"**, with every device revoked. It's inert and uses 1 of the 10 room slots |
 
 ### Node version
 
 - **Develop on Node 26**, the current Active LTS. Node 24 moved to Maintenance LTS on 20 Oct 2026, and 27 is still an alpha.
 - **`.nvmrc` still says `24`.** It's an upstream file, so the minimal-diff rule keeps it as is. As a result, a bare `nvm use` or `nvm install` in this repo selects Node 24. **Always type `nvm use 26`.**
-- Upstream CI (`.github/workflows/digitalocean.yml`) builds on Node 24. The `Dockerfile` uses `node:latest`. Our own CI should test on 26, and optionally 24.
+- Upstream CI (`.github/workflows/digitalocean.yml`, disabled here) builds on Node 24. The root `Dockerfile` uses `node:latest`; `server/Dockerfile` uses `node:26-slim`. Our CI tests on 26.
 
 ## One-time setup
 
@@ -44,16 +58,16 @@ nvm alias default 26
 nvm use 26
 node -v                      # expect v26.x
 
-# 2. Install dependencies and confirm the unmodified fork passes all checks
+# 2. Install dependencies and confirm everything passes
 npm ci
-npm run check                # lint + tsc + vitest + npm audit
+npm ci --prefix server       # needed before npm run check: server tests import Hono
+npm ci --prefix obr-extension
+npm run check                # lint + tsc + vitest pass; npm audit fails on the upstream baseline
 
 # 3. Start from main, on a branch for the phase
 git switch main && git pull
-git switch -c sync-steel/phase-1
+git switch -c sync-steel/phase-2
 ```
-
-If `npm audit` fails on the untouched upstream code, note it as a baseline and don't fix it in the fork. It currently does; see the table above.
 
 ## Running the pieces
 
@@ -61,28 +75,29 @@ Run each from `~/dev/forgesteel-owlbear-sync`, after `nvm use 26`, in its own te
 
 | What | Command | Address |
 |---|---|---|
-| Stub backend | `npm start --prefix server` (no install needed) | `http://localhost:8787`, device token `dev-token` |
+| Backend | `DEV_SEED=1 npm start --prefix server` | `http://localhost:8787`. The Dev room's device tokens are `dev-token` (seat "Dev") and `dev-gm-token` (seat "GM"). Data in `server/.data/` |
 | The fork | `npm start` | `http://localhost:5173` |
-| Owlbear extension | `npm ci --prefix obr-extension`, then `npm run dev --prefix obr-extension` | `http://localhost:5174/manifest.json` |
+| Owlbear extension | `npm run dev --prefix obr-extension` | `http://localhost:5174/manifest.json` |
 
-To connect the fork (or forgesteel.net) to a Warehouse:
+To connect the fork to a backend until Phase 2's Sync Steel page exists:
 1. Settings → **Advanced** → Feature Flags: enter `Treat Curve`. This upstream flag hides the manual Warehouse settings; see [spike finding 1](./spike-results.md#1-upstream-hides-manual-warehouse-settings-behind-a-feature-flag).
-2. Settings → Connections: turn on the manual Warehouse and enter the host and token.
+2. Settings → Connections: turn on the manual Warehouse and enter the host and a device token.
 
-**Checks:**
+The local fork (`http://localhost:5173`) may also connect to the deployed api; its CORS list allows it.
+
+**Checks** (CI runs all of them):
 - `npm run check` covers the fork and the `server/` and `obr-extension/` tests.
 - Lint `server/src` and `obr-extension/src` with `npx eslint server/src obr-extension/src`.
-- Type-check with `npm run typecheck --prefix server` and `npm run build --prefix obr-extension`. Both need `npm ci --prefix …` first.
+- Type-check with `npm run typecheck --prefix server` and `npm run build --prefix obr-extension`.
 
 ## Accounts and resources
 
 | Needed for | Requirement |
 |---|---|
-| Phase 0 spike: Owlbear test | An Owlbear Rodeo account and a **test room** with **Draw Steel Tools** installed |
-| Phase 0: permission tests | A **second browser or account** joined to that room as a player; try the room's character permission with "owner only" both on and off |
-| Phase 0: iPad checks | An iPad running Safari, and later the fork installed to the home screen |
-| Phase 0, optional | A paid Patreon membership for Seamus Finlayson's **Party Continuity**, to test stale restores |
-| Phase 1 onward: hosting | A Railway account (you have one) with Postgres, and the Railway CLI (installed; see the Railway CLI row above). Backups use Railway's own scheduled backups plus a GM export, so **no bucket or encryption key is needed** (report §6) |
+| Owlbear tests | An Owlbear Rodeo account and a **test room** with **Draw Steel Tools** installed, plus a **second browser or account** as a player |
+| iPad checks | An iPad running Safari, and later the fork installed to the home screen |
+| Optional | A paid Patreon membership for Seamus Finlayson's **Party Continuity**, to test stale restores (E2) |
+| Hosting | Railway (Hobby workspace) with the `sync-steel` project. **Volume backups would need Pro**; not needed, given the snapshots and GM export |
 | Phase 2: daily upstream sync | A fine-grained **personal access token** (or GitHub App) with contents and pull-request write access to the fork, stored as an Actions secret. The built-in `GITHUB_TOKEN` won't trigger CI |
 | Phase 2: deployment | A domain or subdomain for the fork's web app. **Choose it carefully:** installed home-screen apps and browser data are tied to it |
 
@@ -92,65 +107,71 @@ To connect the fork (or forgesteel.net) to a Warehouse:
 - **Layout:**
   ```
   src/sync-steel/     Forge Steel sync module (new files only)
-  server/             backend (Node/TypeScript, Warehouse-compatible API + WebSocket); its own npm package
+  server/             backend (Node/TypeScript, Warehouse-compatible API, later the WebSocket hub); its own npm package
   obr-extension/      Owlbear companion extension; its own npm package
   docs/sync-steel/    plan, report, decisions, spike results
   ```
-  `server/` and `obr-extension/` each have their own `package.json`, lockfile and `.npmrc`. **Never add their dependencies to the root `package.json`** (an upstream file).
+  `server/` and `obr-extension/` each have their own `package.json`, lockfile and `.npmrc`. **Never add their dependencies to the root `package.json`** (an upstream file). Install with `npm install --prefix server …`; without `--prefix`, npm walks up to the root.
 - **Upstream sync:** merge `upstream/main`; never rebase or force-push.
 - **Draw Steel Tools data:** write only schema-valid values to `com.draw-steel-stat-bubbles/metadata`. Patch only the synced fields, and keep `notes`, `gmOnly` and `heroicResourceButton` untouched.
 - **Never commit secrets.** They go in Railway variables and GitHub Actions secrets.
 - **Ricky's bridge** (`RickyTan01/forgesteel-obr-bridge`) has no license: use it as reference only and don't copy its code or images.
 
-## Next: Phase 1, the backend storage MVP
+## Next: Phase 2, the fork goes live
 
-**Goal** (report §11, item 1): a real backend on Railway that delivers the "lost device" goal on its own. It needs:
-- the Warehouse-compatible API;
-- rooms, seats and device tokens;
-- a join page;
-- hero revisions;
-- backups: Railway's scheduled volume backups plus a GM export of the whole room (report §6).
+**Goal** (report §11, item 2, revised by [decisions](./decisions.md)): the group starts using Sync Steel. Players open the deployed fork on their phones and iPads, join the room, and import their heroes. This delivers the "lost device" goal to the group. It needs:
+- **`fs-web` on Railway:** the fork's existing `Dockerfile` (nginx), on a chosen domain. Add that origin to the api's `CORS_ORIGINS`.
+- **The Sync Steel page** (`src/sync-steel/`), mounted with the planned route or menu hook. It covers:
+  - creating a room;
+  - joining with a code and picking or creating a seat;
+  - writing `ConnectionSettings` for the api, then reloading;
+  - for the GM, managing devices and seats, rotating the code, export and import (with a "last export" reminder), and snapshot restore.
 
-Then migrate the group with forgesteel.net's Transfer page. Merging and WebSockets come later (Phase 3).
+  The server API is ready: see [server/README.md](../../server/README.md#api).
+- **The api address:** pre-filled from a runtime `FORGESTEEL_*` variable through `nginx/env.sh`.
+- **Branding:** a distinct name and icon (report §9).
+- **Upkeep:** the daily upstream-merge workflow, contract tests, and Railway "Wait for CI" for both services.
+- **A short how-to for players:**
+  1. Export `.ds-hero` and `.ds-sourcebook` files from forgesteel.net.
+  2. Open the fork, join, and import them.
+  3. On iPad, install the fork to the home screen.
 
-**Read first:**
-- report §4.2 (rooms);
-- §4.3 (API and data model);
-- §4.4 (revisions, including the spike refinement);
-- §6 (durability), §8 (Railway) and §9 (migration);
-- [spike findings 1–2](./spike-results.md#findings).
-
-**Build on Phase 0.** The `server/` stub is the starting point. Replace its in-memory store with Postgres and keep everything else:
-- the Warehouse contract and its tests: `warehouse-compat.test.ts` runs upstream's own client against the server;
-- `_syncSteel.rev` on reads, revisions that are never reused, and echo detection;
-- the JWT `sid` per `/connect`. **Store the session id with every hero revision**, so Phase 3's merge can use base = the later of the stamp and that session's last write ([finding 2](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base)).
-
-**Decisions to confirm with the user at the start** (recommendations in brackets):
-1. **HTTP layer:** keep `node:http`, or use a framework such as Hono or Fastify. [Keep `node:http` for now; the API is small.]
-2. **Postgres driver and migrations.** [`postgres` or `pg`, with plain numbered SQL migration files and a small runner.]
-3. **Token hashing.** The report says argon2. [But device tokens, refresh tokens and the GM key are long random secrets, so a SHA-256 hash is enough. The ~10-character join code is the guessable one: protect it with rate limits and rotation.] `.npmrc` sets `ignore-scripts=true`, so avoid packages that compile on install, such as `argon2`; prebuilt ones like `@node-rs/argon2` work.
-4. **Join page:** static HTML served by the backend [yes], or part of the fork's Sync Steel panel (Phase 2).
-5. **Backups.** **Already decided** (22 Nov 2026): use as few extra services as possible, as long as that doesn't add much complexity. So there's no bucket, encryption key or cron service.
-   - Turn on Railway's daily, weekly and monthly backups for the Postgres volume.
-   - Build a GM-only export endpoint (the whole room as one compressed JSON file) and an import.
-
-   Still to confirm: the export's exact contents, and whether the import is an endpoint or a CLI script. [A CLI script; restores are rare.]
-6. **CI:** our own GitHub Actions workflow is planned for Phase 2. It could come earlier to protect `main`. Upstream's two workflows are registered but disabled (see Notes), and they must stay that way.
-
-**Constraints to know:**
-- **Server runtime:** `server/` runs as plain `node src/main.ts`. When the server starts importing the fork's `src/` (Phase 3–4, for `HeroLogic`), it will need a build step such as esbuild, because `src/` uses `@/` aliases, imports without extensions, and enums. Phase 1 doesn't need `src/`.
-- **Database tests:** root `vitest run` picks up `server/**/*.test.ts`. Tests that need Postgres must skip when there's no `DATABASE_URL` (`describe.skipIf`), so `npm run check` still passes without a database. Run them against a local Postgres in Docker.
-- **Installing packages:** use `npm install --prefix server …`. Without `--prefix`, npm walks up to the root `package.json`.
-
-**Before or during Phase 1, from the user:** nothing more. The Railway CLI is installed and logged in.
-
-**User preference:** add as few services as possible, unless doing without one makes things much more complex. Weigh any new service, database or account against that.
-
-The Transfer-page check from the spike (still open) fits naturally into the migration test.
+**Decisions to confirm with the user at the start:**
+1. **The fork's domain**, and whether the api gets a custom one too. Players' installed apps and browser data are tied to the fork's domain.
+2. **Branding:** the PWA name and icons are set in `vite.config.ts` and `public/`, which are upstream files. Override them at build time, or accept a small upstream diff?
+3. **Where the page lives:** its own route and menu entry, or a panel in Settings?
+4. **Railway configuration** with two services: keep CLI-applied settings, or adopt Railway IaC (`.railway/railway.ts`, which needs the `railway` npm SDK outside upstream's root `package.json`)?
+5. **Upstream sync auth:** a fine-grained PAT or a GitHub App.
+6. **Reset production first?** Wipe the api's database before go-live, which removes the inert drill room, or keep it.
 
 **Suggested first prompt for the new session:**
 
-> Read `docs/sync-steel/SETUP.md`, starting with "Next: Phase 1", then the report sections and spike findings it lists. Use Node 26 (`nvm use 26`). Create the branch `sync-steel/phase-1` from `main`. Plan Phase 1 (the backend storage MVP) and confirm the open decisions with me before building.
+> Read `docs/sync-steel/SETUP.md`, starting with "Next: Phase 2", then `docs/sync-steel/decisions.md` and the report sections it cites. Use Node 26 (`nvm use 26`). Make sure PR #2 (Phase 1) is merged, then create the branch `sync-steel/phase-2` from `main`. Plan Phase 2 (the fork goes live) and confirm the open decisions with me before building.
+
+## Phase 1, the backend storage MVP (done)
+
+Branch `sync-steel/phase-1`, [PR #2](https://github.com/treyrumsey/forgesteel-owlbear-sync/pull/2). Every decision is in [decisions.md](./decisions.md#phase-1-backend-storage-22-nov-2026).
+
+1. ✅ **Renamed** Table Link to Sync Steel.
+2. ✅ **Server:** Hono and SQLite (`node:sqlite`) replace the in-memory stub.
+   - **Kept from the stub:** the Warehouse contract (`warehouse-compat.test.ts` still runs upstream's own client), `_syncSteel` stamps, revision numbers that are never reused, echo detection, and merge-base logging.
+   - **Every revision records its session id** (finding 2), and committed changes raise events for Phase 3.
+3. ✅ **Rooms, seats and device tokens**, with secrets stored as HMAC hashes.
+   - The GM seat needs the GM key.
+   - The GM sees every hero in the room; players see only their own seat's heroes.
+   - Revocation takes effect at the device's next request.
+   - Rate limits and body caps.
+4. ✅ **Revisions:** retention and soft deletes. GM endpoints for revisions, restore, undelete, audit, export and import (with a dry run), and snapshot restore.
+5. ✅ **Durability:** Railway's backups turned out to need Pro, so the server writes its own daily snapshots.
+6. ✅ **CI:** `sync-steel-ci.yml`.
+7. ✅ **Deployed** to Railway, then verified against production:
+   - **Upstream's real client:** `WarehouseService` uploaded a 90 KB pregen hero, homebrew and session data. The stamp went rev 1 → 2.
+   - **Export and restore:** a GM export, then a deliberate bad edit and a deleted sourcebook. The dry-run import changed nothing; the real import restored both.
+   - **The real fork in headless Chrome:** connected to the api and imported a `.ds-hero` file, which reached the server as one PUT. A second, fresh browser profile on the same seat loaded the hero.
+   - **Revocation:** a revoked device's still-valid access token got `401` at once.
+8. ✅ **Spike items closed:**
+   - **Transfer page:** dropped; players import hero files instead.
+   - **Export and import:** the hero export is `JSON.stringify(hero)`, so it keeps `_syncSteel`; import goes through `updateHero` and the save path, which the stamp tests cover.
 
 ## Phase 0, the spike (done)
 
@@ -205,5 +226,5 @@ The Transfer-page check from the spike (still open) fits naturally into the migr
   - GitHub registered "Build and deploy" (`digitalocean.yml`) and "Cleanup container registry" (`do-registry-cleanup.yml`) when Phase 0 merged to `main` on 22 Nov 2026. Both were disabled with `gh workflow disable` before they ever ran.
   - **Keep them disabled.** They deploy to upstream's DigitalOcean registry with secrets the fork doesn't have, and their `check` job fails on the `npm audit` baseline.
   - After merging upstream changes, confirm with `gh workflow list --all` that they're still disabled.
-  - Our own CI will be a separate workflow file.
+  - Our own CI is [`sync-steel-ci.yml`](../../.github/workflows/sync-steel-ci.yml).
 - Research copies of the other repos (Draw Steel Tools, Ricky's bridge, the Warehouse, the Owlbear SDK) aren't kept here. Source versions and links are listed in the report's Appendix A.

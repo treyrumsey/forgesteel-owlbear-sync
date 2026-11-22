@@ -5,6 +5,8 @@
 > **Update (22 Nov 2026):** the Phase 0 spike is done. Its results are in [spike-results.md](./spike-results.md). Design refinements from it are marked "Spike" inline in §4.4, §4.7, §4.7.1, §4.8 and §9.
 >
 > **Renamed (22 Nov 2026):** the project was called "Table Link" until Phase 1 began. It's now **Sync Steel**: the stamp is `_syncSteel`, and the module lives in `src/sync-steel/`.
+>
+> **Phase 1 (22 Nov 2026):** the backend is built and deployed. Decisions that change this report are in [decisions.md](./decisions.md) and marked "Phase 1" inline (§4.2, §4.3, §6, §8, §9 and §11).
 
 ---
 
@@ -223,6 +225,14 @@ Party Continuity is a **paid, closed-source** extension for Seamus's Patreon mem
 
 A small **join page** served by the backend (enter code → pick seat → show a device token) lets unmodified forgesteel.net connect through Settings → Warehouse.
 
+> **Phase 1 (22 Nov 2026, [decisions](./decisions.md#rooms-seats-and-access)):**
+> - **No join page on the backend.** Joining, and the GM's room tools, live in the fork's Sync Steel page (Phase 2). forgesteel.net isn't a supported client.
+> - **The GM seat needs the GM key**, not only the code.
+> - **GM devices see and edit every hero in the room**; players see only their own seat's heroes.
+> - **Secrets are HMAC-SHA256 hashes**, not argon2.
+> - **Anyone can create a room**, within rate limits and a room cap.
+> - **The group plays in person:** players use the fork on phones and iPads, and Owlbear runs on the GM's laptop and a shared TV.
+
 ### 4.3 Backend: Warehouse-compatible API
 
 **Compatibility contract.** Implement what `WarehouseService` and the connection test actually call, matching the reference Warehouse's response shapes:
@@ -261,6 +271,13 @@ A small **join page** served by the backend (enter code → pick seat → show a
 | `audit_log` | joins, revocations, restores |
 
 Token ↔ hero links are **not** stored here; they live on the Owlbear tokens (§4.6).
+
+> **Phase 1 (22 Nov 2026, [decisions](./decisions.md#storage-sqlite-on-a-railway-volume)):**
+> - **Storage:** built on **SQLite** (`node:sqlite`) in a file on a Railway volume, not Postgres, with Hono for HTTP.
+> - **Tables:** `rooms`, `seats`, `devices`, `heroes`, `hero_revisions` (gzipped, recording each write's session id and source), `hero_session_writes`, `homebrew`, `seat_data` and `audit_log`.
+> - **Room endpoints:** `POST /rooms`, `POST /join/lookup` and `POST /join`.
+> - **GM endpoints** (`/gm/*`): room and devices, join-code rotation, revisions and restore, audit, export, import and snapshots. `/obr/*` and `/ws` come in later phases.
+> - **Reference:** [server/README.md](../../server/README.md#api).
 
 **HeroLogic on the server.** The backend lives in the fork repo and imports `HeroLogic` from the fork's own `src/`, built from the same commit. It does two jobs:
 - **Summarise** a hero for Owlbear: name, max stamina, current stamina, temporary stamina, max and current recoveries, surges, the primary heroic resource (feature id, name, value), and conditions.
@@ -449,6 +466,11 @@ Constraints:
 
 > **Decided 22 Nov 2026: no extra services for backups.** The original design added an S3-compatible bucket, an encryption key and a cron service. Railway's built-in scheduled backups plus a GM export cover the same risks with no new accounts, keys or services. The bucket stays an optional later upgrade.
 
+> **Phase 1 finding (22 Nov 2026, [decisions](./decisions.md#durability-railway-backups-need-a-pro-workspace)):** Railway's volume backups, manual or scheduled, **need a Pro workspace**, and this one isn't Pro.
+> - **Replacement:** the server writes a daily `VACUUM INTO` snapshot of the database to the volume and keeps the last 14. The GM can export the room from any snapshot and import it.
+> - **Off-site copy:** the GM export is still the copy outside Railway.
+> - **On upgrading to Pro:** the Railway schedules can be turned on with one API call.
+
 | Layer | Purpose |
 |---|---|
 | `hero_revisions` + soft delete | Undo or restore a hero, or a bad merge, from inside the app |
@@ -507,6 +529,11 @@ Constraints:
 
 No separate backup service is needed (§6).
 
+> **Phase 1 (22 Nov 2026):**
+> - **Services:** one service, `api`, with a volume at `/data`. There's no `postgres` service. Settings and IDs are in [SETUP.md](./SETUP.md#railway).
+> - **Variables:** `DATABASE_PATH`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `TOKEN_HASH_KEY`, `CORS_ORIGINS`, `TRUST_PROXY=1` and `MAX_ROOMS`.
+> - **CORS** lists the fork's origins only, not forgesteel.net.
+
 **Environment variables:**
 - `DATABASE_URL`
 - `JWT_SECRET` and `JWT_REFRESH_SECRET`
@@ -520,6 +547,8 @@ No separate backup service is needed (§6).
 ---
 
 ## 9. Migration, costs, licensing and branding
+
+> **Phase 1 (22 Nov 2026, [decisions](./decisions.md#onboarding-json-import-not-a-forgesteelnet-migration)):** the migration below is replaced. In Phase 2, each player exports `.ds-hero` and `.ds-sourcebook` files from forgesteel.net, then imports them into the deployed fork. The import saves straight to the server and keeps the hero ids. forgesteel.net doesn't connect to the backend.
 
 **Moving a group onto the bridge:**
 1. The GM deploys and creates a room, getting a join code and a GM key.
@@ -569,6 +598,7 @@ No time estimates; each phase leaves something usable.
 
 0. **Spike:** the checklist above, with a throwaway Owlbear extension, a Node script using `HeroLogic`, and a stub Warehouse-compatible server tested against unmodified forgesteel.net.
 1. **Backend storage MVP:** the Warehouse-compatible API, rooms, seats, device tokens, join page, revisions, Railway scheduled backups and a GM export (§6). Migrate the group using forgesteel.net's Transfer page. **This alone delivers the "lost device" goal.**
+   - **Done 22 Nov 2026,** with changes: there's no join page or Transfer migration, and daily snapshots replace Railway's backups. See [decisions](./decisions.md#phase-1-backend-storage-22-nov-2026). The group starts using it in Phase 2.
 2. **Fork setup:**
    - public fork, branding, Railway `fs-web`;
    - daily merge workflow, contract tests, Wait for CI;
