@@ -1,0 +1,16 @@
+{
+	"name": "Table Link (spike)",
+	"version": "0.0.1",
+	"manifest_version": 1,
+	"author": "treyrumsey",
+	"homepage_url": "https://github.com/treyrumsey/forgesteel-owlbear-sync",
+	"description": "Phase 0 test tool for the Forge Steel to Draw Steel Tools sync. It writes test values to Draw Steel Tools token data. Not for real play.",
+	"icon": "/icon.svg",
+	"action": {
+		"title": "Table Link spike",
+		"icon": "/icon.svg",
+		"popover": "/",
+		"height": 640,
+		"width": 420
+	}
+}
