@@ -1,0 +1,149 @@
+name: Sync Steel upstream sync
+
+# Daily: merge upstream andyaiken/forgesteel main into a PR on this fork (report §7).
+# - Merges, never rebases. The PR merges itself with a merge commit once Sync Steel CI passes.
+# - A merge that touches .github/workflows/ isn't auto-merged: upstream workflows added to main
+#   would be enabled here, so a person reviews those (and disables any that deploy upstream).
+# - Conflicts and a missing or expired token open an issue labelled upstream-sync.
+#
+# Pushes and PRs use SYNC_STEEL_UPSTREAM_TOKEN, a fine-grained PAT for this repo with contents,
+# pull requests and workflows write access: the built-in GITHUB_TOKEN's pushes don't trigger CI.
+
+on:
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: sync-steel-upstream
+  cancel-in-progress: false
+
+env:
+  REPO: ${{ github.repository }}
+  UPSTREAM: https://github.com/andyaiken/forgesteel.git
+  ISSUE_LABEL: upstream-sync
+  REVIEW_LABEL: upstream-sync-review
+
+jobs:
+  merge-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the token
+        id: token
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_STEEL_UPSTREAM_TOKEN }}
+        run: |
+          if [ -n "$GH_TOKEN" ] && gh api "repos/$REPO" --jq .full_name > /dev/null; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report a missing or expired token
+        if: steps.token.outputs.ok != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "$ISSUE_LABEL" --repo "$REPO" --color d93f0b --description 'The daily upstream merge needs attention' --force
+          body="The daily upstream sync couldn't use \`SYNC_STEEL_UPSTREAM_TOKEN\`: it's missing, expired or lacks access. Create a new fine-grained PAT (this repo only; contents, pull requests and workflows: read and write), then run \`gh secret set SYNC_STEEL_UPSTREAM_TOKEN --repo $REPO\`. Run: $GITHUB_SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID"
+          issue=$(gh issue list --repo "$REPO" --label "$ISSUE_LABEL" --state open --search 'in:title token' --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --label "$ISSUE_LABEL" --title 'Upstream sync: the token needs renewing' --body "$body"
+          fi
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.SYNC_STEEL_UPSTREAM_TOKEN }}
+          fetch-depth: 0
+
+      - name: Merge upstream
+        id: merge
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_STEEL_UPSTREAM_TOKEN }}
+        run: |
+          git config user.name 'Sync Steel upstream sync'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream "$UPSTREAM"
+          git fetch --no-tags upstream main
+
+          if git merge-base --is-ancestor upstream/main origin/main; then
+            echo "main already has upstream $(git rev-parse --short upstream/main)"
+            echo "status=current" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          sha=$(git rev-parse --short=8 upstream/main)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+          # Update an open sync PR rather than opening another
+          branch=$(gh pr list --repo "$REPO" --state open --base main --json headRefName --jq '[.[] | select(.headRefName | startswith("sync/upstream-"))][0].headRefName // empty')
+          if [ -n "$branch" ]; then
+            git switch -c "$branch" "origin/$branch"
+          else
+            branch="sync/upstream-$sha"
+            git switch -c "$branch" origin/main
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+          if ! git merge --no-ff --no-edit -m "Merge upstream andyaiken/forgesteel main ($sha)" upstream/main; then
+            git diff --name-only --diff-filter=U | sed 's/^/- /' > "$RUNNER_TEMP/conflicts.md"
+            git merge --abort
+            echo "status=conflict" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git push origin "HEAD:$branch"
+
+          if git diff --name-only origin/main...HEAD -- .github/workflows | grep -q .; then
+            echo "workflows=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "status=merged" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the PR
+        if: steps.merge.outputs.status == 'merged'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_STEEL_UPSTREAM_TOKEN }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          SHA: ${{ steps.merge.outputs.sha }}
+          WORKFLOWS: ${{ steps.merge.outputs.workflows }}
+        run: |
+          title="Merge upstream andyaiken/forgesteel ($SHA)"
+          pr=$(gh pr list --repo "$REPO" --state open --head "$BRANCH" --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --repo "$REPO" --title "$title"
+          else
+            body="Daily merge of upstream \`main\` (up to $SHA), opened by the Sync Steel upstream sync workflow. It merges itself with a merge commit once Sync Steel CI passes, unless it changes \`.github/workflows/\`."
+            gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$title" --body "$body"
+            pr=$(gh pr list --repo "$REPO" --state open --head "$BRANCH" --json number --jq '.[0].number')
+          fi
+
+          if [ "$WORKFLOWS" = 'true' ]; then
+            gh label create "$REVIEW_LABEL" --repo "$REPO" --color fbca04 --description 'An upstream merge that changes workflows' --force
+            gh pr edit "$pr" --repo "$REPO" --add-label "$REVIEW_LABEL"
+            gh pr comment "$pr" --repo "$REPO" --body "This merge changes \`.github/workflows/\`, so it isn't merged automatically. Review the workflow changes; after merging, check \`gh workflow list --all\` and disable any new upstream workflow."
+          else
+            gh pr merge "$pr" --repo "$REPO" --auto --merge
+          fi
+
+      - name: Report a conflict
+        if: steps.merge.outputs.status == 'conflict'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.merge.outputs.sha }}
+        run: |
+          gh label create "$ISSUE_LABEL" --repo "$REPO" --color d93f0b --description 'The daily upstream merge needs attention' --force
+          body=$(printf 'Merging upstream `main` (%s) conflicts in:\n\n%s\n\nMerge it by hand on a branch (`git fetch upstream && git merge upstream/main`), never rebasing, and open a PR. Production keeps the last good build meanwhile. Run: %s' "$SHA" "$(cat "$RUNNER_TEMP/conflicts.md")" "$GITHUB_SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID")
+          issue=$(gh issue list --repo "$REPO" --label "$ISSUE_LABEL" --state open --search 'in:title conflict' --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --label "$ISSUE_LABEL" --title 'Upstream sync: merge conflict' --body "$body"
+          fi
+          exit 1
