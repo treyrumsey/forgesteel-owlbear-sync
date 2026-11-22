@@ -5,7 +5,7 @@ import { FeatureType } from '@/enums/feature-type';
 import { Hero } from '@/models/hero';
 import { HeroClass } from '@/models/class';
 import { HeroLogic } from '@/logic/hero-logic';
-import { HeroSummaryLogic } from '@/table-link/logic/hero-summary-logic';
+import { HeroSummaryLogic } from '@/sync-steel/logic/hero-summary-logic';
 import { Utils } from '@/utils/utils';
 import { beastheart } from '@/data/classes/beastheart/beastheart';
 import { fury } from '@/data/classes/fury/fury';

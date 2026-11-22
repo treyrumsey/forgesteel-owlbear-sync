@@ -28,7 +28,7 @@ vi.mock('axios', async () => {
 
 vi.mock('localforage');
 
-type StampedHero = Hero & { _tableLink?: { rev: number } };
+type StampedHero = Hero & { _syncSteel?: { rev: number } };
 
 const buildStampedHero = (): StampedHero => {
 	const hero: StampedHero = FactoryLogic.createHero();
@@ -36,7 +36,7 @@ const buildStampedHero = (): StampedHero => {
 	hero.name = 'Stamped';
 	hero.class = Utils.copy(fury);
 	hero.class.level = 1;
-	hero._tableLink = { rev: 7 };
+	hero._syncSteel = { rev: 7 };
 	return hero;
 };
 
@@ -50,7 +50,7 @@ const settings: ConnectionSettings = {
 	dataSource: undefined
 };
 
-describe('a top-level _tableLink stamp on a hero', () => {
+describe('a top-level _syncSteel stamp on a hero', () => {
 	const mockAdapter = new MockAdapter(axios);
 
 	afterEach(() => {
@@ -60,7 +60,7 @@ describe('a top-level _tableLink stamp on a hero', () => {
 	it('survives Utils.copy', () => {
 		const copy = Utils.copy(buildStampedHero());
 
-		expect(copy._tableLink).toEqual({ rev: 7 });
+		expect(copy._syncSteel).toEqual({ rev: 7 });
 	});
 
 	it('survives HeroUpdateLogic.updateHero', () => {
@@ -68,7 +68,7 @@ describe('a top-level _tableLink stamp on a hero', () => {
 
 		HeroUpdateLogic.updateHero(hero, [ core, orden ]);
 
-		expect(hero._tableLink).toEqual({ rev: 7 });
+		expect(hero._syncSteel).toEqual({ rev: 7 });
 	});
 
 	it('survives a Warehouse load, an edit and a save', async () => {
@@ -105,9 +105,9 @@ describe('a top-level _tableLink stamp on a hero', () => {
 		await dataManager.saveHero(copy);
 
 		expect(putBodies).toHaveLength(1);
-		expect(putBodies[0]._tableLink).toEqual({ rev: 7 });
+		expect(putBodies[0]._syncSteel).toEqual({ rev: 7 });
 		expect(putBodies[0].state.staminaDamage).toBe(6);
-		expect(heroDispatch.mock.lastCall?.[0].payload._tableLink).toEqual({ rev: 7 });
+		expect(heroDispatch.mock.lastCall?.[0].payload._syncSteel).toEqual({ rev: 7 });
 	});
 
 	it('survives a local save and reload', async () => {
@@ -123,6 +123,6 @@ describe('a top-level _tableLink stamp on a hero', () => {
 		await dataService.saveHero(buildStampedHero());
 		const reloaded = await dataService.getHero('stamped-hero') as StampedHero | null;
 
-		expect(reloaded?._tableLink).toEqual({ rev: 7 });
+		expect(reloaded?._syncSteel).toEqual({ rev: 7 });
 	});
 });

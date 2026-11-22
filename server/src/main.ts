@@ -1,50 +1,67 @@
-import { parseDeviceTokens, parseList } from './config.ts';
-import type { AddressInfo } from 'node:net';
-import { createStubServer } from './stub-server.ts';
-import { randomBytes } from 'node:crypto';
+import { createApp, listen } from './app.ts';
+import { createSnapshotter } from './snapshots.ts';
+import { loadConfig } from './config.ts';
+import { migrate } from './db/migrate.ts';
+import { openDatabase } from './db/database.ts';
+import { seedDevRoom } from './dev-seed.ts';
 
 // Run with: node src/main.ts (Node 26 runs TypeScript directly)
-
-const DEFAULT_CORS_ORIGINS = [
-	// The fork's Vite dev server (npm start)
-	'http://localhost:5173',
-	'http://127.0.0.1:5173',
-	// Unmodified forgesteel.net, via Settings > Warehouse
-	'https://forgesteel.net'
-];
 
 const writeLine = (line: string) => {
 	process.stdout.write(`${line}\n`);
 };
 
-const env = process.env;
-let deviceTokens: Record<string, string>;
-try {
-	deviceTokens = parseDeviceTokens(env.STUB_DEVICE_TOKENS ?? 'dev-token=Dev');
-} catch (error) {
-	process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+const stop = (message: string) => {
+	process.stderr.write(`${message}\n`);
 	process.exit(1);
-}
-const corsOrigins = env.CORS_ORIGINS ? parseList(env.CORS_ORIGINS) : DEFAULT_CORS_ORIGINS;
+};
 
-const server = createStubServer({
-	deviceTokens: deviceTokens,
-	corsOrigins: corsOrigins,
-	// A random secret means tokens issued before a restart stop working; devices just reconnect
-	jwtSecret: env.JWT_SECRET ?? randomBytes(32).toString('hex'),
-	accessTokenTtlSeconds: env.ACCESS_TOKEN_TTL_SECONDS ? Number(env.ACCESS_TOKEN_TTL_SECONDS) : undefined,
+let loaded: ReturnType<typeof loadConfig>;
+try {
+	loaded = loadConfig(process.env);
+} catch (error) {
+	stop(`Configuration error: ${error instanceof Error ? error.message : String(error)}`);
+	throw error;
+}
+const { config, warnings } = loaded;
+warnings.forEach(warning => process.stderr.write(`Warning: ${warning}\n`));
+
+const db = openDatabase(config.databasePath);
+const applied = migrate(db);
+writeLine(`Database ${config.databasePath}${applied.length > 0 ? `; applied ${applied.join(', ')}` : ''}`);
+
+const { app, services } = createApp({
+	db: db,
+	corsOrigins: config.corsOrigins,
+	secrets: { jwt: config.jwtSecret, jwtRefresh: config.jwtRefreshSecret, tokenHash: config.tokenHashKey },
+	accessTokenTtlSeconds: config.accessTokenTtlSeconds,
+	refreshTokenTtlSeconds: config.refreshTokenTtlSeconds,
+	maxRooms: config.maxRooms,
+	trustProxy: config.trustProxy,
+	revisionKeepLast: config.revisionKeepLast,
+	revisionDailyDays: config.revisionDailyDays,
+	snapshotDir: config.snapshotDir,
 	log: writeLine
 });
 
-server.listen(Number(env.PORT ?? 8787), () => {
-	const address = server.address() as AddressInfo;
-	writeLine(`Table Link stub Warehouse listening on http://localhost:${address.port}`);
-	writeLine(`Seats: ${[ ...new Set(Object.values(deviceTokens)) ].join(', ')} (${Object.keys(deviceTokens).length} device tokens)`);
-	writeLine(`CORS origins: ${corsOrigins.join(', ')}`);
-});
+if (config.devSeed) {
+	seedDevRoom(services).forEach(writeLine);
+}
+
+const stopSnapshots = config.snapshotDir
+	? createSnapshotter({ db: db, dir: config.snapshotDir, keep: config.snapshotKeep, log: writeLine }).start()
+	: () => undefined;
+
+const { server, port } = await listen(app, config.port);
+writeLine(`Sync Steel server listening on http://localhost:${port}`);
+writeLine(`CORS origins: ${config.corsOrigins.join(', ')}`);
 
 const shutdown = () => {
-	server.close(() => process.exit(0));
+	stopSnapshots();
+	server.close(() => {
+		db.close();
+		process.exit(0);
+	});
 	server.closeAllConnections();
 };
 process.on('SIGINT', shutdown);

@@ -3,6 +3,10 @@
 *Prepared 21 Nov 2026 for a home Draw Steel group. Research and design only; no code has been written. Source versions examined are listed in [Appendix A](#appendix-a-sources-and-versions-examined).*
 
 > **Update (22 Nov 2026):** the Phase 0 spike is done. Its results are in [spike-results.md](./spike-results.md). Design refinements from it are marked "Spike" inline in §4.4, §4.7, §4.7.1, §4.8 and §9.
+>
+> **Renamed (22 Nov 2026):** the project was called "Table Link" until Phase 1 began. It's now **Sync Steel**: the stamp is `_syncSteel`, and the module lives in `src/sync-steel/`.
+>
+> **Phase 1 (22 Nov 2026):** the backend is built and deployed. Decisions that change this report are in [decisions.md](./decisions.md) and marked "Phase 1" inline (§4.2, §4.3, §6, §8, §9 and §11).
 
 ---
 
@@ -18,7 +22,7 @@
 
 | Piece | What it is |
 |---|---|
-| **Forge Steel fork** | A public GitHub fork of `andyaiken/forgesteel`, merged with upstream daily, plus a small self-contained **Table Link** module (join a room, live updates). |
+| **Forge Steel fork** | A public GitHub fork of `andyaiken/forgesteel`, merged with upstream daily, plus a small self-contained **Sync Steel** module (join a room, live updates). |
 | **Backend** | Your own Node/TypeScript service. It **speaks Forge Steel's existing "Warehouse" storage API** and adds room codes, revision history, server-side stat calculation, conflict-aware merging, and a WebSocket hub. Postgres stores everything. |
 | **Owlbear extension** | A new companion extension. It reads and writes the stat fields Draw Steel Tools keeps on each token, and draws condition badges. Draw Steel Tools itself is not modified. |
 
@@ -30,7 +34,7 @@
 
 **Key design ideas:**
 - **Room codes replace accounts.** A player joins with the room's code and picks their own hero. A new device recovers the hero the same way.
-- **The revision stamp travels inside the hero.** The server writes `_tableLink.rev` into every hero it returns, and Forge Steel keeps unknown fields when it saves. Each save therefore says which revision it was based on, and the server can do a **field-level three-way merge**: an edit made in Owlbear survives a stale save from Forge Steel, even from unmodified forgesteel.net.
+- **The revision stamp travels inside the hero.** The server writes `_syncSteel.rev` into every hero it returns, and Forge Steel keeps unknown fields when it saves. Each save therefore says which revision it was based on, and the server can do a **field-level three-way merge**: an edit made in Owlbear survives a stale save from Forge Steel, even from unmodified forgesteel.net.
 - **Writes are paced on the Owlbear side.** Every stage has per-token debouncing with a maximum wait, plus a quiet window, scene-settle, single-flight writes and batching. This minimises collisions with Draw Steel Tools, Party Continuity and humans, at an expected 1–3 s end-to-end latency.
 - **Party Continuity is handled.** Token links live on the tokens themselves, and each token records the revision it last synced. When Party Continuity restores old values into a scene, they are recognised as stale and replaced from the server instead of being sent to Forge Steel.
 
@@ -170,13 +174,13 @@ Party Continuity is a **paid, closed-source** extension for Seamus's Patreon mem
 | B | Browser extension bridging the two tabs | ✓ | No | ✗ (iPad needs an App Store app) | ✓ | Rejected |
 | C | Embed Forge Steel in an Owlbear modal and connect with `postMessage` | ✓ while open | Yes | ⚠ separate storage inside the frame; Owlbear's room page sends strict cross-origin headers | ✗ | Rejected |
 | D | Warehouse hub: Ricky's bridge, improved | Only with PRs to Forge Steel **and** the Warehouse | No, once upstreamed | ✓ | ✓ (self-hosted Warehouse only) | Shared account and polling; licence blocker |
-| E | Upstream "Table Link" module in forgesteel.net, plus your backend | ✓ | No | ✓ | ✓ | Depends entirely on Andy merging |
+| E | Upstream "Sync Steel" module in forgesteel.net, plus your backend | ✓ | No | ✓ | ✓ | Depends entirely on Andy merging |
 | F | **Public fork + own Warehouse-compatible backend + room codes + Owlbear extension** | ✓ real-time | Yes | ✓ | ✗ (they move to the fork; forgesteel.net still works in a limited mode) | **Chosen** |
 
 **Why F:**
 - It meets all three goals without waiting on anyone, and you control hosting.
 - Building the backend to Forge Steel's own storage contract keeps the fork's changes tiny.
-- It keeps a route back to E open: the Table Link module is self-contained and could be offered upstream later.
+- It keeps a route back to E open: the Sync Steel module is self-contained and could be offered upstream later.
 
 **Why not host Veritas1000's Warehouse itself plus a side service:**
 - Each user has their own data and users are created by a script, which doesn't fit room seats.
@@ -199,7 +203,7 @@ Party Continuity is a **paid, closed-source** extension for Seamus's Patreon mem
  ┌──────────────────────────────┐ HTTPS (Warehouse API) ┌─────────────────────────┐  WSS  ┌──────────────────────────┐
  │ upstream Forge Steel, incl.  │ ────────────────────▶ │ api (Node/TS)           │ ◀───▶ │ companion extension       │
  │  unchanged WarehouseService  │                       │ • Warehouse-compatible  │       │ • room binding            │
- │ src/table-link/ (new files)  │ ◀──── WSS notify ──── │ • rooms/seats/devices   │       │ • token↔hero links        │
+ │ src/sync-steel/ (new files)  │ ◀──── WSS notify ──── │ • rooms/seats/devices   │       │ • token↔hero links        │
  │ • join room / pick hero      │                       │ • HeroLogic (server)    │       │ • writes DST token data   │
  │ • apply remote updates       │                       │ • revisions + 3-way     │       │ • condition badges        │
  └──────────────────────────────┘                       │   merge                 │       └──────────────────────────┘
@@ -220,6 +224,14 @@ Party Continuity is a **paid, closed-source** extension for Seamus's Patreon mem
 | **Visibility** | A seat sees its own heroes plus the room's homebrew; the GM sees everything. |
 
 A small **join page** served by the backend (enter code → pick seat → show a device token) lets unmodified forgesteel.net connect through Settings → Warehouse.
+
+> **Phase 1 (22 Nov 2026, [decisions](./decisions.md#rooms-seats-and-access)):**
+> - **No join page on the backend.** Joining, and the GM's room tools, live in the fork's Sync Steel page (Phase 2). forgesteel.net isn't a supported client.
+> - **The GM seat needs the GM key**, not only the code.
+> - **GM devices see and edit every hero in the room**; players see only their own seat's heroes.
+> - **Secrets are HMAC-SHA256 hashes**, not argon2.
+> - **Anyone can create a room**, within rate limits and a room cap.
+> - **The group plays in person:** players use the fork on phones and iPads, and Owlbear runs on the GM's laptop and a shared TV.
 
 ### 4.3 Backend: Warehouse-compatible API
 
@@ -260,6 +272,13 @@ A small **join page** served by the backend (enter code → pick seat → show a
 
 Token ↔ hero links are **not** stored here; they live on the Owlbear tokens (§4.6).
 
+> **Phase 1 (22 Nov 2026, [decisions](./decisions.md#storage-sqlite-on-a-railway-volume)):**
+> - **Storage:** built on **SQLite** (`node:sqlite`) in a file on a Railway volume, not Postgres, with Hono for HTTP.
+> - **Tables:** `rooms`, `seats`, `devices`, `heroes`, `hero_revisions` (gzipped, recording each write's session id and source), `hero_session_writes`, `homebrew`, `seat_data` and `audit_log`.
+> - **Room endpoints:** `POST /rooms`, `POST /join/lookup` and `POST /join`.
+> - **GM endpoints** (`/gm/*`): room and devices, join-code rotation, revisions and restore, audit, export, import and snapshots. `/obr/*` and `/ws` come in later phases.
+> - **Reference:** [server/README.md](../../server/README.md#api).
+
 **HeroLogic on the server.** The backend lives in the fork repo and imports `HeroLogic` from the fork's own `src/`, built from the same commit. It does two jobs:
 - **Summarise** a hero for Owlbear: name, max stamina, current stamina, temporary stamina, max and current recoveries, surges, the primary heroic resource (feature id, name, value), and conditions.
 - **Apply** patches from Owlbear: `state.*` fields directly; the heroic resource by feature id, the same way as the resources modal.
@@ -273,7 +292,7 @@ This section addresses three findings from §2.1:
 
 The fix is a **revision stamp embedded in the hero JSON**:
 
-1. Every hero the server returns (GET or after a push) carries `"_tableLink": { "rev": n }`. Forge Steel keeps unknown top-level fields, so any later save, even a debounced or stale copy, **carries the revision it was based on**.
+1. Every hero the server returns (GET or after a push) carries `"_syncSteel": { "rev": n }`. Forge Steel keeps unknown top-level fields, so any later save, even a debounced or stale copy, **carries the revision it was based on**.
 2. On `PUT /data/forgesteel-heroes/{id}` the server:
    1. **Echo check:** if the body, ignoring the stamp, hashes the same as the current version, it does nothing. This absorbs echoes, including the fork re-saving a hero it just received.
    2. **Non-synced parts** (build, inventory, notes, …): takes the incoming body, last writer wins. Owlbear never edits these.
@@ -312,14 +331,14 @@ server → obr     ack       { editId, rev }  |  reject { editId, reason }
 - On reconnect, the client sends the last revision it saw for each hero, and the server sends only the latest state of heroes that changed.
 - Notifications are coalesced per hero (§4.8).
 
-### 4.6 Forge Steel fork: the Table Link module (`src/table-link/`)
+### 4.6 Forge Steel fork: the Sync Steel module (`src/sync-steel/`)
 
 **Room panel:**
 - Join with a code, pick a seat, or create one.
 - Fill in Forge Steel's existing `ConnectionSettings` for the backend. The backend address comes pre-filled from a `FORGESTEEL_*` environment variable supplied by `nginx/env.sh`.
 - Guide the user through the existing Transfer page (Local → server).
 
-**Live listener (`TableLinkProvider`):**
+**Live listener (`SyncSteelProvider`):**
 - Mounted inside `DataManagerProvider` (`src/index.tsx`).
 - Keeps the WebSocket open. On `hero.changed`, it fetches the hero and applies it with `dataManager.saveHero()`; the resulting save is an echo and does nothing on the server.
 - Reconnects and catches up on `visibilitychange`, which matters on iPad.
@@ -334,7 +353,7 @@ server → obr     ack       { editId, rev }  |  reject { editId, reason }
 **Room binding.** The GM enters the GM key once; it is kept in the GM's browser storage. The extension binds the Owlbear room (`OBR.room.id`) and stores the **room token** in Owlbear room data, so every player's client can sync. Room data is size-limited, so it holds only the token and the server URL.
 
 **Linking:**
-- Each token carries **its own link** under our key, for example `com.<you>.table-link/metadata` = `{ heroId, syncedRev, conditions: [...] }`.
+- Each token carries **its own link** under our key, for example `com.<you>.sync-steel/metadata` = `{ heroId, syncedRev, conditions: [...] }`.
 - Because the link is on the token, it follows Party Continuity's copies into every scene.
 - Tokens are linked by name match or with a picker.
 
@@ -398,7 +417,7 @@ Constraints:
 | 2. Server → clients | WebSocket hub | Coalesce per hero: 250 ms trailing, 1 s max; send the latest revision only |
 | 3. Elected writer → Draw Steel Tools token | extension | Per-token queue: **300 ms trailing, 1.5 s max**, plus the rules below |
 | 4. Token edit → server | editing player's client | Per token: **500 ms trailing, 2 s max**; one diff with `baseRev`; ignore our own echoes by comparing against pending-write signatures |
-| 5. Server → Forge Steel fork | `TableLinkProvider` | Coalesce per hero; one `saveHero()` per batch |
+| 5. Server → Forge Steel fork | `SyncSteelProvider` | Coalesce per hero; one `saveHero()` per batch |
 | 6. Condition badges | each client | 200 ms redraw debounce |
 
 **Extra rules for stage 3:**
@@ -446,6 +465,11 @@ Constraints:
 ## 6. Durability and backups
 
 > **Decided 22 Nov 2026: no extra services for backups.** The original design added an S3-compatible bucket, an encryption key and a cron service. Railway's built-in scheduled backups plus a GM export cover the same risks with no new accounts, keys or services. The bucket stays an optional later upgrade.
+
+> **Phase 1 finding (22 Nov 2026, [decisions](./decisions.md#durability-railway-backups-need-a-pro-workspace)):** Railway's volume backups, manual or scheduled, **need a Pro workspace**, and this one isn't Pro.
+> - **Replacement:** the server writes a daily `VACUUM INTO` snapshot of the database to the volume and keeps the last 14. The GM can export the room from any snapshot and import it.
+> - **Off-site copy:** the GM export is still the copy outside Railway.
+> - **On upgrading to Pro:** the Railway schedules can be turned on with one API call.
 
 | Layer | Purpose |
 |---|---|
@@ -505,6 +529,11 @@ Constraints:
 
 No separate backup service is needed (§6).
 
+> **Phase 1 (22 Nov 2026):**
+> - **Services:** one service, `api`, with a volume at `/data`. There's no `postgres` service. Settings and IDs are in [SETUP.md](./SETUP.md#railway).
+> - **Variables:** `DATABASE_PATH`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `TOKEN_HASH_KEY`, `CORS_ORIGINS`, `TRUST_PROXY=1` and `MAX_ROOMS`.
+> - **CORS** lists the fork's origins only, not forgesteel.net.
+
 **Environment variables:**
 - `DATABASE_URL`
 - `JWT_SECRET` and `JWT_REFRESH_SECRET`
@@ -518,6 +547,8 @@ No separate backup service is needed (§6).
 ---
 
 ## 9. Migration, costs, licensing and branding
+
+> **Phase 1 (22 Nov 2026, [decisions](./decisions.md#onboarding-json-import-not-a-forgesteelnet-migration)):** the migration below is replaced. In Phase 2, each player exports `.ds-hero` and `.ds-sourcebook` files from forgesteel.net, then imports them into the deployed fork. The import saves straight to the server and keeps the hero ids. forgesteel.net doesn't connect to the backend.
 
 **Moving a group onto the bridge:**
 1. The GM deploys and creates a room, getting a join code and a GM key.
@@ -551,7 +582,7 @@ No separate backup service is needed (§6).
 | Lost updates with Draw Steel Tools or Party Continuity writing at the same time | Medium | Pacing, re-read, check after writing, reconcile | Scripted bursts (rapid clicks in Draw Steel Tools, rapid +/- in Forge Steel, scene switches) count lost updates; tune the windows |
 | `CHARACTER_OWNER_ONLY` blocks players' writes | Medium | Elected writer, queueing | Test with the room's permission set both ways |
 | `HeroLogic` misbehaves in Node or with homebrew | High | Same-commit import; contract tests | Compute summaries in Node for sample heroes, including homebrew, a Beastheart (Ferocity + Rampage), a Talent with negative Clarity, and a high-level hero with an epic resource |
-| Unknown top-level fields stripped somewhere | High (breaks §4.4) | Contract test; fall back to a per-device server-side copy of what each device last held | Round-trip `_tableLink` through load, edit, modal save, the Transfer page and hero export/import |
+| Unknown top-level fields stripped somewhere | High (breaks §4.4) | Contract test; fall back to a per-device server-side copy of what each device last held | Round-trip `_syncSteel` through load, edit, modal save, the Transfer page and hero export/import |
 | Stale debounced save overwrites a remote update | Medium | Revision stamp plus three-way merge | Remote update arrives during an open resources modal and an in-flight debounce |
 | iPad WebSocket resume is flaky | Low–medium | Catch up by revision on `visibilitychange`; queued writes | Background and foreground Safari and the installed app |
 | Party Continuity restores stale values | Medium | `syncedRev` guard; reconcile after the scene settles | Edit in Forge Steel, then switch scenes with Party Continuity; confirm our keys are carried (needs membership) |
@@ -567,11 +598,12 @@ No time estimates; each phase leaves something usable.
 
 0. **Spike:** the checklist above, with a throwaway Owlbear extension, a Node script using `HeroLogic`, and a stub Warehouse-compatible server tested against unmodified forgesteel.net.
 1. **Backend storage MVP:** the Warehouse-compatible API, rooms, seats, device tokens, join page, revisions, Railway scheduled backups and a GM export (§6). Migrate the group using forgesteel.net's Transfer page. **This alone delivers the "lost device" goal.**
+   - **Done 22 Nov 2026,** with changes: there's no join page or Transfer migration, and daily snapshots replace Railway's backups. See [decisions](./decisions.md#phase-1-backend-storage-22-nov-2026). The group starts using it in Phase 2.
 2. **Fork setup:**
    - public fork, branding, Railway `fs-web`;
    - daily merge workflow, contract tests, Wait for CI;
-   - Table Link room panel.
-3. **Live Forge Steel side:** the WebSocket hub, `TableLinkProvider`, the revision stamp and three-way merge.
+   - Sync Steel room panel.
+3. **Live Forge Steel side:** the WebSocket hub, `SyncSteelProvider`, the revision stamp and three-way merge.
 4. **Owlbear, Forge Steel → token:** room binding, linking, summaries, elected writer, pacing, Draw Steel Tools writes, condition badges.
 5. **Owlbear, token → Forge Steel:** edit forwarding, patches, the Party Continuity stale-restore guard, condition editing.
 6. **Hardening:** rate limits, audit log views, a restore drill, monitoring, short how-to docs for the group.

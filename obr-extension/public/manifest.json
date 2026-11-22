@@ -1,5 +1,5 @@
 {
-	"name": "Table Link (spike)",
+	"name": "Sync Steel (spike)",
 	"version": "0.0.1",
 	"manifest_version": 1,
 	"author": "treyrumsey",
@@ -7,7 +7,7 @@
 	"description": "Phase 0 spike: tests writing Forge Steel stats to Draw Steel Tools tokens. Test rooms only.",
 	"icon": "/icon.svg",
 	"action": {
-		"title": "Table Link spike",
+		"title": "Sync Steel spike",
 		"icon": "/icon.svg",
 		"popover": "/",
 		"height": 640,

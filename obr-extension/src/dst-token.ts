@@ -23,7 +23,7 @@ export interface DstHeroTokenData {
 	notes?: string;
 }
 
-// The fields Table Link owns. `notes`, `gmOnly` and `heroicResourceButton` belong to the table and are never written.
+// The fields Sync Steel owns. `notes`, `gmOnly` and `heroicResourceButton` belong to the table and are never written.
 export const SYNCED_FIELDS = [ 'name', 'stamina', 'staminaMaximum', 'temporaryStamina', 'heroicResource', 'heroicResourceName', 'recoveries', 'surges' ] as const;
 
 export type DstSyncedField = typeof SYNCED_FIELDS[number];
@@ -97,7 +97,7 @@ export type DstPatchResult =
 export const patchDstHeroData = (existing: DstHeroTokenData, patch: DstSyncedFields): DstPatchResult => {
 	const problems = Object.entries(patch).map(([ field, value ]) => {
 		if (!(SYNCED_FIELDS as readonly string[]).includes(field)) {
-			return `${field} is not a field Table Link writes`;
+			return `${field} is not a field Sync Steel writes`;
 		}
 		return checkField(field, value);
 	}).filter(problem => problem !== null);
@@ -118,8 +118,8 @@ export const patchDstHeroData = (existing: DstHeroTokenData, patch: DstSyncedFie
 	return { ok: true, data: data, changed: changed };
 };
 
-// The parts of the server's hero summary (src/table-link/logic/hero-summary-logic.ts) that DST shows
-export interface TableLinkHeroSummary {
+// The parts of the server's hero summary (src/sync-steel/logic/hero-summary-logic.ts) that DST shows
+export interface SyncSteelHeroSummary {
 	name: string;
 	staminaMax: number;
 	stamina: number;
@@ -130,7 +130,7 @@ export interface TableLinkHeroSummary {
 }
 
 // Field mapping from report §4.9. A hero without a heroic resource leaves DST's resource fields alone.
-export const summaryToDstPatch = (summary: TableLinkHeroSummary): DstSyncedFields => {
+export const summaryToDstPatch = (summary: SyncSteelHeroSummary): DstSyncedFields => {
 	const patch: DstSyncedFields = {
 		name: summary.name,
 		staminaMaximum: summary.staminaMax,

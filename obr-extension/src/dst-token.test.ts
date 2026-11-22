@@ -64,7 +64,7 @@ describe('patchDstHeroData', () => {
 	it('refuses to write fields that belong to the table', () => {
 		const result = patchDstHeroData(heroData, { notes: 'overwritten' } as never);
 
-		expect(result).toEqual({ ok: false, problems: [ 'notes is not a field Table Link writes' ] });
+		expect(result).toEqual({ ok: false, problems: [ 'notes is not a field Sync Steel writes' ] });
 	});
 });
 

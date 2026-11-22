@@ -5,7 +5,7 @@ import './style.css';
 // Phase 0 spike tool (report §10): can this extension write Draw Steel Tools' token data,
 // under which permissions, and how many updates are lost when writes collide?
 
-const CHANNEL_PREFIX = 'com.treyrumsey.table-link-spike';
+const CHANNEL_PREFIX = 'com.treyrumsey.sync-steel-spike';
 const BURST_CHANNEL = `${CHANNEL_PREFIX}/burst`;
 const BURST_DONE_CHANNEL = `${CHANNEL_PREFIX}/burst-done`;
 const VERIFY_DELAY_MS = 1500;

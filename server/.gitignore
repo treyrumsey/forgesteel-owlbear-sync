@@ -1,0 +1,2 @@
+# The local development database (DATABASE_PATH defaults to server/.data/dev.db)
+.data/

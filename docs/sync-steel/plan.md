@@ -2,7 +2,15 @@
 
 > **Status 2026‑11‑21:** research and design are complete. The full write-up is in [forgesteel-owlbear-sync-report.md](./forgesteel-owlbear-sync-report.md). Where this plan and the report differ, **the report wins**; for example, the report's §4.4 has the authoritative merge design (a revision stamp kept inside the hero JSON).
 > **Repo:** public fork [`treyrumsey/forgesteel-owlbear-sync`](https://github.com/treyrumsey/forgesteel-owlbear-sync) of `andyaiken/forgesteel`, cloned at `~/dev/forgesteel-owlbear-sync`. Setup steps and next actions are in [SETUP.md](./SETUP.md).
-> Phase 0 (the spike) is done and merged to `main` (22 Nov 2026): results are in [spike-results.md](./spike-results.md). **Next: Phase 1, the backend storage MVP**; see [SETUP.md](./SETUP.md#next-phase-1-the-backend-storage-mvp).
+> Phase 0 (the spike) is done and merged to `main` (22 Nov 2026): results are in [spike-results.md](./spike-results.md).
+> **Phase 1 (the backend storage MVP) is done** (22 Nov 2026), with decisions that change parts of this plan; see [decisions.md](./decisions.md). In short:
+> - SQLite on a Railway volume, not Postgres;
+> - HMAC-hashed secrets;
+> - no forgesteel.net support;
+> - players import hero files into the fork instead of using the Transfer page;
+> - daily snapshots, because Railway's backups need Pro.
+>
+> **Next: Phase 2**; see [SETUP.md](./SETUP.md#next-phase-2-the-fork-goes-live).
 
 ## Problem
 A home group builds heroes in **Forge Steel** (FS, React PWA, GPL‑3) and plays on **Owlbear Rodeo** (OBR) with **Draw Steel Tools 2** (DST, GPL‑3), which tracks hero stats on tokens. Two goals:
@@ -29,7 +37,7 @@ A home group builds heroes in **Forge Steel** (FS, React PWA, GPL‑3) and plays
  ┌───────────────────────────┐   HTTPS (Warehouse API)   ┌──────────────────────────┐  WSS  ┌───────────────────────┐
  │ upstream FS (unchanged    │ ───────────────────────▶ │ api+ws (Node/TS)         │ ◀───▶ │ companion extension    │
  │  WarehouseService)        │                           │  • Warehouse-compatible  │       │  • room binding        │
- │ src/table-link/ module    │ ◀─────── WSS push ─────── │  • rooms/seats/devices   │       │  • token↔hero links    │
+ │ src/sync-steel/ module    │ ◀─────── WSS push ─────── │  • rooms/seats/devices   │       │  • token↔hero links    │
  │  • join room / pick hero  │                           │  • HeroLogic (server)    │       │  • writes DST metadata │
  │  • apply pushed heroes    │                           │  • 3-way merge, revs     │       │  • condition badges    │
  └───────────────────────────┘                           └──────────┬───────────────┘       └───────────────────────┘
@@ -64,7 +72,7 @@ A home group builds heroes in **Forge Steel** (FS, React PWA, GPL‑3) and plays
 - **Conflict control:**
   - Each hero has a monotonically increasing `rev`.
   - A PUT with an unchanged hash is a no-op, which suppresses echoes.
-  - On PUT, the server runs a **3-way merge of the synced fields** against the base revision **stamped in the hero body** (`_tableLink.rev`, injected by the server into every hero it returns; FS keeps unknown top-level fields). This keeps OBR edits that a stale full-hero PUT would otherwise overwrite, including stale debounced copies and PUTs from unmodified forgesteel.net. *(Refined while writing the report; it replaces the per-device "last delivered rev" idea.)*
+  - On PUT, the server runs a **3-way merge of the synced fields** against the base revision **stamped in the hero body** (`_syncSteel.rev`, injected by the server into every hero it returns; FS keeps unknown top-level fields). This keeps OBR edits that a stale full-hero PUT would otherwise overwrite, including stale debounced copies and PUTs from unmodified forgesteel.net. *(Refined while writing the report; it replaces the per-device "last delivered rev" idea.)*
 - **WebSocket hub:** it tells subscribed fork clients and the room's OBR extension clients when heroes change. Each delivers `{heroId, rev, …}`; fork clients pull the full hero and OBR gets the summary. Missed changes are replayed by rev when a client reconnects.
 - **Security:**
   - TLS (Railway).
@@ -74,9 +82,9 @@ A home group builds heroes in **Forge Steel** (FS, React PWA, GPL‑3) and plays
   - Request size limits.
   - Audit log of device joins.
 
-### FS fork module (`src/table-link/`, minimal diff)
+### FS fork module (`src/sync-steel/`, minimal diff)
 - **Room panel:** join with a code, pick a seat or hero, and create a seat or upload a local hero. It configures `ConnectionSettings` for the backend (pre-filled host via a `FORGESTEEL_*` runtime env var) and walks the user through Transfer (Local → server).
-- **Live listener:** a `TableLinkProvider` mounted inside `DataManagerProvider` (`src/index.tsx`). It holds a WebSocket and applies pushed heroes via `dataManager.saveHero()`; the echo is a no-op server-side. It reconnects and catches up on `visibilitychange` (iPad).
+- **Live listener:** a `SyncSteelProvider` mounted inside `DataManagerProvider` (`src/index.tsx`). It holds a WebSocket and applies pushed heroes via `dataManager.saveHero()`; the echo is a no-op server-side. It reconnects and catches up on `visibilitychange` (iPad).
 - **Debounce race:** `usePersistence.persistHero` saves a 400 ms-old copy, which could overwrite a remote update. Handled by the server's 3-way merge, plus re-applying remote fields if a stale save arrives.
 - **Hook points into upstream files:** about 2 (provider mount in `index.tsx`, and a menu or route entry). Everything else lives in new files.
 
@@ -150,7 +158,7 @@ DST doesn't need changes and keeps rendering its own bars and editors. Rules for
 | 2. Server → clients | backend WebSocket hub | Coalesce per hero: 250 ms trailing, 1 s max-wait; push only the latest rev | A burst of FS saves becomes one push |
 | 3. OBR writer → DST token | elected writer in the extension | Per-token queue: **300 ms trailing, 1.5 s max-wait**; only the latest values are written. Five extra rules follow this table. | Fewer writes, and we stay out of the way of other writers |
 | 4. DST edit → server | extension (the editing player's client) | Per token: **500 ms trailing, 2 s max-wait**. Send the final diff against the last-synced snapshot, with `baseRev = syncedRev`. Ignore our own echoes (track the signature of pending writes). | Rapid +/- clicks in DST become one patch, one server rev and one push to FS |
-| 5. Server → FS fork | `TableLinkProvider` | Coalesce incoming updates per hero. If a local save for that hero is still pending (the 400 ms debounce), wait for it to flush, then field-merge and call `saveHero()` once. | Avoids the stale-pending-save clobber, and saves churn |
+| 5. Server → FS fork | `SyncSteelProvider` | Coalesce incoming updates per hero. If a local save for that hero is still pending (the 400 ms debounce), wait for it to flush, then field-merge and call `saveHero()` once. | Avoids the stale-pending-save clobber, and saves churn |
 | 6. Condition badges | extension | Redraw per token with a 200 ms debounce | Cosmetic; avoids flicker |
 
 **Extra rules for stage 3:**
