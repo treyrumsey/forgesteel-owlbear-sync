@@ -1,6 +1,10 @@
 import { type TestServer, startTestServer } from './test-support.ts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createSnapshotter } from './snapshots.ts';
 import { gunzipSync } from 'node:zlib';
+import { join } from 'node:path';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 let t: TestServer;
 let room: Awaited<ReturnType<TestServer['createRoom']>>;
@@ -182,5 +186,32 @@ describe('GM export and import', () => {
 
 		expect(response.status).toBe(400);
 		expect((await response.json()).message).toContain('isn\'t a valid Sync Steel room export');
+	});
+});
+
+describe('GM snapshot restore', () => {
+	it('lists the daily snapshots and exports this room from one, ready to import', async () => {
+		await t.close();
+		const dir = mkdtempSync(join(tmpdir(), 'sync-steel-gm-snapshots-'));
+		t = await startTestServer({ snapshotDir: dir });
+		room = await t.createRoom('Thursday group');
+		gm = (await t.connect(room.deviceToken)).access_token;
+		const alice = await player('Alice');
+		await t.putHero(alice.access, { id: 'kalla', name: 'Kalla', state: { staminaDamage: 2 } });
+		createSnapshotter({ db: t.db, dir: dir, keep: 14, now: () => t.clock.now }).snapshotIfDue();
+		await t.putHero(alice.access, { id: 'kalla', name: 'Kalla', state: { staminaDamage: 50 } });
+
+		const list = await (await t.call('/gm/snapshots', gm)).json();
+		const missing = await t.call('/gm/snapshots/2020-01-01/export', gm);
+		const exported = await t.call('/gm/snapshots/2026-11-22/export', gm);
+		const file = Buffer.from(await exported.arrayBuffer());
+		const imported = await (await t.call('/gm/import', gm, { method: 'POST', body: file, headers: { 'Content-Type': 'application/gzip' } })).json();
+		const kalla = await (await t.call('/data/forgesteel-heroes/kalla', alice.access)).json();
+
+		expect(list).toEqual({ data: [ { date: '2026-11-22' } ] });
+		expect(missing.status).toBe(404);
+		expect(exported.headers.get('content-disposition')).toContain('sync-steel-thursday-group-2026-11-22-snapshot.json.gz');
+		expect(imported.summary.heroes).toEqual({ created: 0, updated: 1, unchanged: 0, skipped: 0 });
+		expect(kalla.data.state).toEqual({ staminaDamage: 2 });
 	});
 });

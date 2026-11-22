@@ -40,6 +40,7 @@ const { app, services } = createApp({
 	trustProxy: config.trustProxy,
 	revisionKeepLast: config.revisionKeepLast,
 	revisionDailyDays: config.revisionDailyDays,
+	snapshotDir: config.snapshotDir,
 	log: writeLine
 });
 

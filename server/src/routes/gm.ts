@@ -1,13 +1,18 @@
-import { type AppEnv, type Services } from '../services.ts';
+import { type AppEnv, type Services, createServices } from '../services.ts';
 import { HttpError, fail, readObject, requireName } from '../http.ts';
 import { buildRoomExport, importRoom, parseRoomExport } from '../room-export.ts';
 import { generateJoinCode, normalizeJoinCode } from '../secrets.ts';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { limitBody, stampHero } from './warehouse.ts';
 import { requireDevice, requireGm } from './auth.ts';
+import type { Context } from 'hono';
+import { DatabaseSync } from 'node:sqlite';
 import type { HeroRow } from '../store/heroes.ts';
 import { Hono } from 'hono';
 import type { JsonObject } from '../json.ts';
+import type { RoomExport } from '../room-export.ts';
+import { join } from 'node:path';
+import { listSnapshots } from '../snapshots.ts';
 
 const MAX_IMPORT_JSON_BYTES = 200 * 1024 * 1024;
 
@@ -17,6 +22,17 @@ const heroName = (row: HeroRow) => {
 };
 
 const fileSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'room';
+
+const sendExport = (c: Context, payload: RoomExport, suffix: string) => {
+	const file = gzipSync(JSON.stringify(payload));
+	return {
+		bytes: file.length,
+		response: c.body(new Uint8Array(file), 200, {
+			'Content-Type': 'application/gzip',
+			'Content-Disposition': `attachment; filename="sync-steel-${fileSlug(payload.room.name)}-${suffix}.json.gz"`
+		})
+	};
+};
 
 // Room management for devices in the GM seat. Phase 2's Sync Steel page in the fork is their UI.
 export const gmRoutes = (s: Services) => {
@@ -171,14 +187,38 @@ export const gmRoutes = (s: Services) => {
 	app.get('/gm/export', c => {
 		const principal = c.get('principal');
 		const payload = buildRoomExport(s, principal.roomId);
-		const file = gzipSync(JSON.stringify(payload));
+		const { bytes, response } = sendExport(c, payload, payload.exportedAt.slice(0, 10));
 		s.rooms.markExported(principal.roomId);
-		s.rooms.audit({ roomId: principal.roomId, seatId: principal.seatId, deviceId: principal.deviceId, action: 'room.exported', detail: { heroes: payload.heroes.length, bytes: file.length } });
-		const filename = `sync-steel-${fileSlug(payload.room.name)}-${payload.exportedAt.slice(0, 10)}.json.gz`;
-		return c.body(new Uint8Array(file), 200, {
-			'Content-Type': 'application/gzip',
-			'Content-Disposition': `attachment; filename="${filename}"`
-		});
+		s.rooms.audit({ roomId: principal.roomId, seatId: principal.seatId, deviceId: principal.deviceId, action: 'room.exported', detail: { heroes: payload.heroes.length, bytes: bytes } });
+		return response;
+	});
+
+	// The server's daily copies of the database. Exporting this room from one gives a file the import below restores.
+	app.get('/gm/snapshots', c => {
+		const dates = s.snapshotDir ? listSnapshots(s.snapshotDir).map(name => name.slice('sync-steel-'.length, -'.db'.length)) : [];
+		return c.json({ data: dates.reverse().map(date => ({ date: date })) });
+	});
+
+	app.get('/gm/snapshots/:date/export', c => {
+		const principal = c.get('principal');
+		const date = c.req.param('date');
+		const name = `sync-steel-${date}.db`;
+		if (!s.snapshotDir || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !listSnapshots(s.snapshotDir).includes(name)) {
+			throw fail(404, 'There\'s no snapshot for that date');
+		}
+
+		const db = new DatabaseSync(join(s.snapshotDir, name), { readOnly: true });
+		try {
+			const snapshot = createServices({ db: db, secrets: s.secrets, now: s.now });
+			if (!snapshot.rooms.getRoom(principal.roomId)) {
+				throw fail(404, 'This room isn\'t in that snapshot');
+			}
+			const payload = buildRoomExport(snapshot, principal.roomId);
+			s.rooms.audit({ roomId: principal.roomId, seatId: principal.seatId, deviceId: principal.deviceId, action: 'room.snapshot-exported', detail: { date: date } });
+			return sendExport(c, payload, `${date}-snapshot`).response;
+		} finally {
+			db.close();
+		}
 	});
 
 	// Accepts the export file as downloaded (gzipped) or plain JSON. ?dryRun=1 reports what would change.

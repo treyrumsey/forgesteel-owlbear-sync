@@ -62,6 +62,8 @@ export interface ServiceOptions {
 	revisionDailyDays?: number;
 	bodyLimits?: Partial<BodyLimits>;
 	rateLimits?: Partial<RateLimits>;
+	// Where the daily database snapshots are, if any
+	snapshotDir?: string | null;
 	now?: () => number;
 	log?: (line: string) => void;
 	events?: EventBus;
@@ -82,6 +84,7 @@ export interface Services {
 	refreshTokenTtlSeconds: number;
 	maxRooms: number;
 	trustProxy: boolean;
+	snapshotDir: string | null;
 	now: () => number;
 	nowIso: () => string;
 	log: (line: string) => void;
@@ -137,6 +140,7 @@ export const createServices = (options: ServiceOptions): Services => {
 		refreshTokenTtlSeconds: refreshTokenTtlSeconds,
 		maxRooms: options.maxRooms ?? 10,
 		trustProxy: options.trustProxy ?? false,
+		snapshotDir: options.snapshotDir ?? null,
 		now: now,
 		nowIso: nowIso,
 		log: options.log ?? (() => undefined),
