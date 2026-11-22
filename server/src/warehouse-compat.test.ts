@@ -1,35 +1,32 @@
+import { type TestServer, startTestServer } from './test-support.ts';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { AddressInfo } from 'node:net';
 import { ConnectionSettings } from '@/models/connection-settings';
 import { FactoryLogic } from '@/logic/factory-logic';
 import { Hero } from '@/models/hero';
 import { Sourcebook } from '@/models/sourcebook';
 import { WarehouseService } from '@/services/storage/warehouse-service';
-import { createStubServer } from './stub-server.ts';
 
-// Forge Steel's own, unmodified WarehouseService talking to the stub over real HTTP:
+// Forge Steel's own, unmodified WarehouseService talking to the server over real HTTP:
 // the fork's storage layer needs no code changes to use the Sync Steel backend.
 
 type StampedHero = Hero & { _syncSteel?: { rev: number } };
 
+// Forge Steel reads the token's own exp, so the server's clock starts at the real time
 let clock = Date.now();
-const requests: string[] = [];
-const server = createStubServer({
-	deviceTokens: { 'device-alice': 'Alice', 'device-bob': 'Bob' },
-	corsOrigins: [],
-	jwtSecret: 'compat-secret',
-	now: () => clock,
-	log: line => requests.push(line)
-});
+let t: TestServer;
 let host = '';
+const devices = { alice: '', bob: '' };
 
 beforeAll(async () => {
-	await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
-	host = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+	t = await startTestServer({ now: () => clock });
+	host = t.base;
+	const room = await t.createRoom();
+	devices.alice = (await t.join({ code: room.joinCode, newSeatName: 'Alice' })).deviceToken;
+	devices.bob = (await t.join({ code: room.joinCode, newSeatName: 'Bob' })).deviceToken;
 });
 
 afterAll(async () => {
-	await new Promise(resolve => server.close(resolve));
+	await t.close();
 });
 
 const connect = async (warehouseToken: string) => {
@@ -47,9 +44,9 @@ const connect = async (warehouseToken: string) => {
 	return service;
 };
 
-describe('upstream WarehouseService against the stub', () => {
+describe('upstream WarehouseService against the Sync Steel server', () => {
 	it('saves, lists, loads, re-saves and deletes a hero', async () => {
-		const service = await connect('device-alice');
+		const service = await connect(devices.alice);
 		const hero = FactoryLogic.createHero();
 		hero.id = 'compat-hero';
 		hero.name = 'Kalla';
@@ -72,7 +69,7 @@ describe('upstream WarehouseService against the stub', () => {
 	});
 
 	it('saves and loads homebrew, session and hidden sourcebook ids', async () => {
-		const service = await connect('device-bob');
+		const service = await connect(devices.bob);
 		const sourcebook = FactoryLogic.createSourcebook();
 		sourcebook.id = 'compat-homebrew';
 		const session = FactoryLogic.createSession();
@@ -88,16 +85,16 @@ describe('upstream WarehouseService against the stub', () => {
 	});
 
 	it('recovers from an expired access token by refreshing and retrying', async () => {
-		const service = await connect('device-alice');
-		requests.length = 0;
+		const service = await connect(devices.alice);
+		t.logLines.length = 0;
 
-		// The stub's clock moves past the token's expiry, but the client's doesn't,
+		// The server's clock moves past the token's expiry, but the client's doesn't,
 		// so the client sends the token and must handle the server's 401
 		clock += 16 * 60 * 1000;
 		const heroes = await service.getHeroes();
 
 		expect(heroes).toEqual([]);
-		const statuses = requests.filter(line => / (GET|POST) \//.test(line)).map(line => line.split(' ').slice(-3).join(' '));
+		const statuses = t.logLines.filter(line => / (GET|POST) \//.test(line)).map(line => line.split(' ').slice(-3).join(' '));
 		expect(statuses).toEqual([
 			'GET /data/forgesteel-heroes?fields=name,folder 401',
 			'POST /refresh 200',
@@ -106,7 +103,7 @@ describe('upstream WarehouseService against the stub', () => {
 	});
 
 	// Forge Steel shows the reference Warehouse's {message} body to the user
-	it('shows the stub\'s error message for an unknown device token', async () => {
+	it('shows the server\'s error message for an unknown device token', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		const service = new WarehouseService({
 			useManualWarehouse: true,

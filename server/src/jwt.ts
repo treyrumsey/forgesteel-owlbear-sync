@@ -3,7 +3,11 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 export type TokenType = 'access' | 'refresh';
 
 export interface JwtClaims {
+	// Seat id
 	sub: string;
+	room: string;
+	// Device id, checked against revocation on every request
+	did: string;
 	// One id per /connect: the session's own writes are known ancestors of its copy of a hero
 	sid: string;
 	type: TokenType;
@@ -28,6 +32,8 @@ const isClaims = (value: unknown): value is JwtClaims => {
 
 	const claims = value as Record<string, unknown>;
 	return (typeof claims.sub === 'string')
+		&& (typeof claims.room === 'string')
+		&& (typeof claims.did === 'string')
 		&& (typeof claims.sid === 'string')
 		&& ((claims.type === 'access') || (claims.type === 'refresh'))
 		&& (typeof claims.iat === 'number')
