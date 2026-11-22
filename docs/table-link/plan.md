@@ -33,7 +33,7 @@ A home group builds heroes in **Forge Steel** (FS, React PWA, GPL‑3) and plays
  │  • join room / pick hero  │                           │  • HeroLogic (server)    │       │  • writes DST metadata │
  │  • apply pushed heroes    │                           │  • 3-way merge, revs     │       │  • condition badges    │
  └───────────────────────────┘                           └──────────┬───────────────┘       └───────────────────────┘
- forgesteel.net (optional, manual Warehouse) ───HTTPS──▶            │ Postgres (JSONB) + nightly off-site backup
+ forgesteel.net (optional, manual Warehouse) ───HTTPS──▶            │ Postgres (JSONB) + Railway backups + GM export
 ```
 
 ### Room model (replaces accounts)
@@ -201,10 +201,12 @@ How it fits:
 - iPad's per-site storage separation is irrelevant because the server holds the data.
 
 ### Durability
-- Railway Postgres volume backups.
-- A **nightly `pg_dump` cron to an off-platform S3-compatible bucket**.
+**Decided 22 Nov 2026: no extra services** (report §6).
+- **Railway scheduled backups** of the Postgres volume: daily, weekly and monthly.
+- A **GM export**: a download of the whole room as one file, plus an import to restore it. This is the copy outside Railway.
 - `hero_revisions` for undo or restore; soft deletes with a retention period.
 - Users can still export locally (FS Backup page).
+- Optional later: a nightly `pg_dump` to an S3-compatible bucket, if the manual export becomes a chore.
 
 ### Fork upkeep
 - **Repo setup (decided 2026‑11‑21):** a **normal public GitHub fork** of `andyaiken/forgesteel`. A private copy was considered and rejected; GitHub forks of public repos are always public anyway.
@@ -220,9 +222,8 @@ How it fits:
 ### Railway services
 1. `fs-web`: the fork, built with its existing Dockerfile (nginx + `env.sh`).
 2. `api`: HTTP and WebSocket. **Serverless off**, with a healthcheck.
-3. `postgres`.
-4. `backup`: a cron job.
-5. The extension's static files, served by `api` or as their own static service.
+3. `postgres`, with Railway's scheduled backups turned on.
+4. The extension's static files, served by `api` or as their own static service.
 
 ### Accepted costs and limits
 - Users must migrate their heroes into the fork. Transfer from forgesteel.net's local storage works through Backup export/import; on iPad that includes reinstalling the PWA.

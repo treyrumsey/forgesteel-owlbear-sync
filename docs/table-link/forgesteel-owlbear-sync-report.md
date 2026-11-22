@@ -205,7 +205,7 @@ Party Continuity is a **paid, closed-source** extension for Seamus's Patreon mem
  └──────────────────────────────┘                       │   merge                 │       └──────────────────────────┘
  forgesteel.net (optional) ── HTTPS (manual Warehouse) ▶ │ • WebSocket hub         │
                                                         └───────────┬─────────────┘
-                                                                    │ Postgres (JSONB) ─▶ nightly off-site backup
+                                                                    │ Postgres (JSONB) ─▶ Railway scheduled backups + GM export
 ```
 
 ### 4.2 Rooms instead of accounts
@@ -445,15 +445,21 @@ Constraints:
 
 ## 6. Durability and backups
 
+> **Decided 22 Nov 2026: no extra services for backups.** The original design added an S3-compatible bucket, an encryption key and a cron service. Railway's built-in scheduled backups plus a GM export cover the same risks with no new accounts, keys or services. The bucket stays an optional later upgrade.
+
 | Layer | Purpose |
 |---|---|
 | `hero_revisions` + soft delete | Undo or restore a hero, or a bad merge, from inside the app |
-| Railway volume backups for Postgres (if your plan includes them) | Fast whole-database rollback |
-| **Nightly `pg_dump` cron → off-platform S3-compatible bucket** (e.g. Cloudflare R2, Backblaze B2), encrypted (`age`/`gpg`) before upload | Survives losing the Railway project or account |
+| **Railway scheduled volume backups** on the Postgres volume, all three schedules on:<br>• daily, kept 6 days;<br>• weekly, kept 27 days;<br>• monthly, kept 89 days.<br>([Railway docs](https://docs.railway.com/volumes/backups)) | Whole-database rollback from the Railway dashboard. No code |
+| **GM export:**<br>• a GM-only endpoint that downloads the whole room (seats, heroes, homebrew, session data, hidden sourcebook ids) as one compressed JSON file;<br>• a matching import for restoring it. | A copy **outside Railway**, kept wherever the GM likes (their computer, a cloud drive). Covers what Railway's backups can't: per Railway's docs, wiping a volume deletes all its backups, and backups only restore into the same project and environment. Device tokens aren't exported: after a restore, players rejoin with the room code |
 | Forge Steel's own hero export and Backup page | Each player's own copy |
 
-- **Retention example:** 30 daily and 12 monthly dumps; revision history pruned to the last N revisions per hero plus daily checkpoints.
-- **Test a restore** into a scratch database before relying on the backups, and again after schema changes.
+- **Retention:** revision history is pruned to the last N revisions per hero, plus daily checkpoints.
+- **Habit:** the GM downloads an export now and then, for example after each session. A "last export" date in the GM's view makes it easy to remember.
+- **Test a restore** before relying on the backups, and again after schema changes:
+  - restore a Railway backup in a scratch environment;
+  - import a GM export into a local database.
+- **Optional later upgrade:** a nightly `pg_dump` cron that encrypts the dump (`age`) and uploads it to an S3-compatible bucket (Cloudflare R2, Backblaze B2). That automates the off-Railway copy, at the cost of a bucket, a key and a cron service.
 
 ---
 
@@ -494,15 +500,15 @@ Constraints:
 |---|---|---|
 | `fs-web` | Fork, existing `Dockerfile` (nginx) | Runtime `FORGESTEEL_*` variables for the backend URL; custom domain; GitHub autodeploy with Wait for CI |
 | `api` | Fork monorepo `server/` (Node/TS) | **Serverless off.** Serverless sleeps a service 5–10 minutes after its last outbound traffic, which would drop WebSockets. Healthcheck `/healthz`; one replica (if you ever scale out, fan out with Postgres `LISTEN/NOTIFY`) |
-| `postgres` | Railway Postgres | Volume backups if available |
-| `backup` | Small image running `pg_dump` + encrypt + upload | Railway cron schedule (nightly) |
+| `postgres` | Railway Postgres | **Scheduled backups on:** daily, weekly and monthly (§6) |
 | Extension static files | Served by `api` under `/obr/`, or a separate static service | `Access-Control-Allow-Origin: *` on `manifest.json` and `*.svg` |
+
+No separate backup service is needed (§6).
 
 **Environment variables:**
 - `DATABASE_URL`
 - `JWT_SECRET` and `JWT_REFRESH_SECRET`
 - `CORS_ORIGINS`: the fork's origin, `https://forgesteel.net` and the extension's origin. The `/connect` test sends credentials, so reply with the **specific** origin plus `Access-Control-Allow-Credentials: true`.
-- The backup bucket's credentials and encryption key.
 
 **Abuse limits:**
 - Rate-limit `/join` and `/connect`.
@@ -560,7 +566,7 @@ Constraints:
 No time estimates; each phase leaves something usable.
 
 0. **Spike:** the checklist above, with a throwaway Owlbear extension, a Node script using `HeroLogic`, and a stub Warehouse-compatible server tested against unmodified forgesteel.net.
-1. **Backend storage MVP:** the Warehouse-compatible API, rooms, seats, device tokens, join page, revisions and nightly off-site backups. Migrate the group using forgesteel.net's Transfer page. **This alone delivers the "lost device" goal.**
+1. **Backend storage MVP:** the Warehouse-compatible API, rooms, seats, device tokens, join page, revisions, Railway scheduled backups and a GM export (§6). Migrate the group using forgesteel.net's Transfer page. **This alone delivers the "lost device" goal.**
 2. **Fork setup:**
    - public fork, branding, Railway `fs-web`;
    - daily merge workflow, contract tests, Wait for CI;

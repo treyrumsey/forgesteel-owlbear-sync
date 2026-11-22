@@ -82,8 +82,7 @@ To connect the fork (or forgesteel.net) to a Warehouse:
 | Phase 0: permission tests | A **second browser or account** joined to that room as a player; try the room's character permission with "owner only" both on and off |
 | Phase 0: iPad checks | An iPad running Safari, and later the fork installed to the home screen |
 | Phase 0, optional | A paid Patreon membership for Seamus Finlayson's **Party Continuity**, to test stale restores |
-| Phase 1 onward: hosting | A Railway account (you have one) with Postgres, plus the Railway CLI (`brew install railway`) |
-| Phase 1: backups | An S3-compatible bucket (e.g. Cloudflare R2 or Backblaze B2) and an encryption key (`age` or `gpg`) |
+| Phase 1 onward: hosting | A Railway account (you have one) with Postgres, plus the Railway CLI (`brew install railway`). Backups use Railway's own scheduled backups plus a GM export, so **no bucket or encryption key is needed** (report §6) |
 | Phase 2: daily upstream sync | A fine-grained **personal access token** (or GitHub App) with contents and pull-request write access to the fork, stored as an Actions secret. The built-in `GITHUB_TOKEN` won't trigger CI |
 | Phase 2: deployment | A domain or subdomain for the fork's web app. **Choose it carefully:** installed home-screen apps and browser data are tied to it |
 
@@ -110,7 +109,7 @@ To connect the fork (or forgesteel.net) to a Warehouse:
 - rooms, seats and device tokens;
 - a join page;
 - hero revisions;
-- nightly off-site backups.
+- backups: Railway's scheduled volume backups plus a GM export of the whole room (report §6).
 
 Then migrate the group with forgesteel.net's Transfer page. Merging and WebSockets come later (Phase 3).
 
@@ -131,7 +130,11 @@ Then migrate the group with forgesteel.net's Transfer page. Merging and WebSocke
 2. **Postgres driver and migrations.** [`postgres` or `pg`, with plain numbered SQL migration files and a small runner.]
 3. **Token hashing.** The report says argon2. [But device tokens, refresh tokens and the GM key are long random secrets, so a SHA-256 hash is enough. The ~10-character join code is the guessable one: protect it with rate limits and rotation.] `.npmrc` sets `ignore-scripts=true`, so avoid packages that compile on install, such as `argon2`; prebuilt ones like `@node-rs/argon2` work.
 4. **Join page:** static HTML served by the backend [yes], or part of the fork's Table Link panel (Phase 2).
-5. **Backups:** a Railway cron service runs `pg_dump`, encrypts with `age`, and uploads to R2 or B2. This needs the bucket and key; see [Accounts and resources](#accounts-and-resources).
+5. **Backups.** **Already decided** (22 Nov 2026): use as few extra services as possible, as long as that doesn't add much complexity. So there's no bucket, encryption key or cron service.
+   - Turn on Railway's daily, weekly and monthly backups for the Postgres volume.
+   - Build a GM-only export endpoint (the whole room as one compressed JSON file) and an import.
+
+   Still to confirm: the export's exact contents, and whether the import is an endpoint or a CLI script. [A CLI script; restores are rare.]
 6. **CI:** our own GitHub Actions workflow is planned for Phase 2. It could come earlier to protect `main`. Upstream's two workflows are registered but disabled (see Notes), and they must stay that way.
 
 **Constraints to know:**
@@ -139,10 +142,9 @@ Then migrate the group with forgesteel.net's Transfer page. Merging and WebSocke
 - **Database tests:** root `vitest run` picks up `server/**/*.test.ts`. Tests that need Postgres must skip when there's no `DATABASE_URL` (`describe.skipIf`), so `npm run check` still passes without a database. Run them against a local Postgres in Docker.
 - **Installing packages:** use `npm install --prefix server …`. Without `--prefix`, npm walks up to the root `package.json`.
 
-**Before or during Phase 1, from the user:**
-- the Railway CLI (`brew install railway`);
-- an S3-compatible bucket (R2 or B2);
-- an `age` key.
+**Before or during Phase 1, from the user:** the Railway CLI (`brew install railway`). Nothing else.
+
+**User preference:** add as few services as possible, unless doing without one makes things much more complex. Weigh any new service, database or account against that.
 
 The Transfer-page check from the spike (still open) fits naturally into the migration test.
 
