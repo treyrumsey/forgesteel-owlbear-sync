@@ -132,7 +132,7 @@ Then migrate the group with forgesteel.net's Transfer page. Merging and WebSocke
 3. **Token hashing.** The report says argon2. [But device tokens, refresh tokens and the GM key are long random secrets, so a SHA-256 hash is enough. The ~10-character join code is the guessable one: protect it with rate limits and rotation.] `.npmrc` sets `ignore-scripts=true`, so avoid packages that compile on install, such as `argon2`; prebuilt ones like `@node-rs/argon2` work.
 4. **Join page:** static HTML served by the backend [yes], or part of the fork's Table Link panel (Phase 2).
 5. **Backups:** a Railway cron service runs `pg_dump`, encrypts with `age`, and uploads to R2 or B2. This needs the bucket and key; see [Accounts and resources](#accounts-and-resources).
-6. **CI:** our own GitHub Actions workflow is planned for Phase 2. It could come earlier to protect `main`. See the Notes below about upstream's workflows first.
+6. **CI:** our own GitHub Actions workflow is planned for Phase 2. It could come earlier to protect `main`. Upstream's two workflows are registered but disabled (see Notes), and they must stay that way.
 
 **Constraints to know:**
 - **Server runtime:** `server/` runs as plain `node src/main.ts`. When the server starts importing the fork's `src/` (Phase 3–4, for `HeroLogic`), it will need a build step such as esbuild, because `src/` uses `@/` aliases, imports without extensions, and enums. Phase 1 doesn't need `src/`.
@@ -199,7 +199,9 @@ The Transfer-page check from the spike (still open) fits naturally into the migr
 ## Notes
 
 - The empty, unused `~/dev/forge-steel-owlbear-sync` folder (with hyphens) has been deleted.
-- **Upstream's workflows are not active in the fork.** As of 22 Nov 2026, GitHub shows no registered workflows and no runs, even after our pushes and the merge to `main`. That's the default for forks until someone enables workflows on the Actions tab.
-  - **Before enabling Actions** (e.g. for our own CI), disable upstream's deploy and registry-cleanup workflows with `gh workflow disable`, which needs no file edits. Otherwise every push to `main` would try to deploy to upstream's DigitalOcean registry.
-  - Their `check` job would also fail on the `npm audit` baseline.
+- **Upstream's workflows are registered in the fork but disabled.**
+  - GitHub registered "Build and deploy" (`digitalocean.yml`) and "Cleanup container registry" (`do-registry-cleanup.yml`) when Phase 0 merged to `main` on 22 Nov 2026. Both were disabled with `gh workflow disable` before they ever ran.
+  - **Keep them disabled.** They deploy to upstream's DigitalOcean registry with secrets the fork doesn't have, and their `check` job fails on the `npm audit` baseline.
+  - After merging upstream changes, confirm with `gh workflow list --all` that they're still disabled.
+  - Our own CI will be a separate workflow file.
 - Research copies of the other repos (Draw Steel Tools, Ricky's bridge, the Warehouse, the Owlbear SDK) aren't kept here. Source versions and links are listed in the report's Appendix A.
