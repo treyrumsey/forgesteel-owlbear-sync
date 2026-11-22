@@ -19,7 +19,7 @@ Everything a new session needs to work on the Forge Steel ⇄ Owlbear Rodeo sync
 | GitHub CLI | Signed in as `treyrumsey`, version 2.105.0 |
 | Docker | Installed (`/usr/local/bin/docker`); useful for a local Postgres and for building the `Dockerfile` |
 | Postgres client | Not installed (optional) |
-| Railway CLI | Not installed (not needed until deployment) |
+| Railway CLI | v5.75.0, installed with Railway's own installer (**not** Homebrew) at `~/.railway/bin/railway`, and logged in. `~/.zshrc` adds it to `PATH` by sourcing `~/.railway/env`. Agent and other non-interactive shells skip `~/.zshrc`, so run `. ~/.railway/env` first (as with `. ~/.nvm/nvm.sh`). Update it the same way it was installed, not with `brew` |
 | Code written | Phase 0 code is done; results are in [spike-results.md](./spike-results.md).<br>• [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md).<br>• `HeroSummaryLogic` and the `_tableLink` tests in [`src/table-link/`](../../src/table-link/).<br>• The stub Warehouse in [`server/`](../../server/).<br>• The Owlbear spike extension in [`obr-extension/`](../../obr-extension/).<br>`npm run check` runs all of their tests: lint, tsc and vitest pass; the audit is unchanged from the baseline. |
 | Still open (optional) | E2, the Party Continuity stale-restore test (needs a paid membership); C3, player writes with Character Update removed; the Transfer page with homebrew; hero export/import. None blocks Phase 1 |
 
@@ -82,7 +82,7 @@ To connect the fork (or forgesteel.net) to a Warehouse:
 | Phase 0: permission tests | A **second browser or account** joined to that room as a player; try the room's character permission with "owner only" both on and off |
 | Phase 0: iPad checks | An iPad running Safari, and later the fork installed to the home screen |
 | Phase 0, optional | A paid Patreon membership for Seamus Finlayson's **Party Continuity**, to test stale restores |
-| Phase 1 onward: hosting | A Railway account (you have one) with Postgres, plus the Railway CLI (`brew install railway`). Backups use Railway's own scheduled backups plus a GM export, so **no bucket or encryption key is needed** (report §6) |
+| Phase 1 onward: hosting | A Railway account (you have one) with Postgres, and the Railway CLI (installed; see the Railway CLI row above). Backups use Railway's own scheduled backups plus a GM export, so **no bucket or encryption key is needed** (report §6) |
 | Phase 2: daily upstream sync | A fine-grained **personal access token** (or GitHub App) with contents and pull-request write access to the fork, stored as an Actions secret. The built-in `GITHUB_TOKEN` won't trigger CI |
 | Phase 2: deployment | A domain or subdomain for the fork's web app. **Choose it carefully:** installed home-screen apps and browser data are tied to it |
 
@@ -142,7 +142,7 @@ Then migrate the group with forgesteel.net's Transfer page. Merging and WebSocke
 - **Database tests:** root `vitest run` picks up `server/**/*.test.ts`. Tests that need Postgres must skip when there's no `DATABASE_URL` (`describe.skipIf`), so `npm run check` still passes without a database. Run them against a local Postgres in Docker.
 - **Installing packages:** use `npm install --prefix server …`. Without `--prefix`, npm walks up to the root `package.json`.
 
-**Before or during Phase 1, from the user:** the Railway CLI (`brew install railway`). Nothing else.
+**Before or during Phase 1, from the user:** nothing more. The Railway CLI is installed and logged in.
 
 **User preference:** add as few services as possible, unless doing without one makes things much more complex. Weigh any new service, database or account against that.
 
