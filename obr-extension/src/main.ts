@@ -404,10 +404,11 @@ const onBurstDone = (data: unknown) => {
 const diffDst = (previousJson: string, json: string) => {
 	const previous = JSON.parse(previousJson) as Record<string, unknown>;
 	const current = JSON.parse(json) as Record<string, unknown>;
-	return [ ...new Set([ ...Object.keys(previous), ...Object.keys(current) ]) ]
+	const changes = [ ...new Set([ ...Object.keys(previous), ...Object.keys(current) ]) ]
 		.filter(field => JSON.stringify(previous[field]) !== JSON.stringify(current[field]))
-		.map(field => `${field} ${JSON.stringify(previous[field])} -> ${JSON.stringify(current[field])}`)
-		.join(', ');
+		.map(field => `${field} ${JSON.stringify(previous[field])} -> ${JSON.stringify(current[field])}`);
+	// The editing client sees DST save twice; the second save only reorders the keys
+	return changes.length > 0 ? changes.join(', ') : 'no value changes (keys reordered)';
 };
 
 const onItemsChange = (items: Item[]) => {
