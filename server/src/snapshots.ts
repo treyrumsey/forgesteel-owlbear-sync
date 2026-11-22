@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { closeSync, fsyncSync, mkdirSync, openSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 
@@ -14,6 +14,7 @@ export interface SnapshotOptions {
 }
 
 const SNAPSHOT_FILE = /^sync-steel-(\d{4}-\d{2}-\d{2})\.db$/;
+const PARTIAL_SUFFIX = '.partial';
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 export const listSnapshots = (dir: string) => {
@@ -28,17 +29,36 @@ export const createSnapshotter = (options: SnapshotOptions) => {
 	const now = options.now ?? Date.now;
 	const log = options.log ?? (() => undefined);
 
-	// At most one snapshot per UTC day, named for that day; older ones beyond `keep` are removed
+	// At most one snapshot per UTC day, named for that day; older ones beyond `keep` are removed.
+	// The copy is written under a temporary name and renamed once it's complete and on disk,
+	// so an interrupted copy is never mistaken for that day's snapshot, and the next check retries.
 	const snapshotIfDue = () => {
 		const name = `sync-steel-${new Date(now()).toISOString().slice(0, 10)}.db`;
 		mkdirSync(options.dir, { recursive: true });
+		readdirSync(options.dir)
+			.filter(file => file.endsWith(PARTIAL_SUFFIX))
+			.forEach(file => rmSync(join(options.dir, file), { force: true }));
 		if (listSnapshots(options.dir).includes(name)) {
 			return null;
 		}
 
 		const path = join(options.dir, name);
-		// VACUUM INTO writes a consistent, compacted copy while the database stays in use
-		options.db.prepare('VACUUM INTO ?').run(path);
+		const partial = `${path}${PARTIAL_SUFFIX}`;
+		try {
+			// VACUUM INTO writes a consistent, compacted copy while the database stays in use
+			options.db.prepare('VACUUM INTO ?').run(partial);
+			const fd = openSync(partial, 'r+');
+			try {
+				fsyncSync(fd);
+			} finally {
+				closeSync(fd);
+			}
+			renameSync(partial, path);
+		} catch (error) {
+			rmSync(partial, { force: true });
+			throw error;
+		}
+
 		const removed = listSnapshots(options.dir).slice(0, -options.keep);
 		removed.forEach(old => rmSync(join(options.dir, old), { force: true }));
 		log(`Snapshot ${path}${removed.length > 0 ? `; removed ${removed.join(', ')}` : ''}`);

@@ -1,7 +1,7 @@
+import { createSnapshotter, listSnapshots } from './snapshots.ts';
 import { describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { createServices } from './services.ts';
-import { createSnapshotter } from './snapshots.ts';
 import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import { migrate } from './db/migrate.ts';
@@ -28,7 +28,7 @@ const setup = () => {
 		writer: { seatId: 'gm', deviceId: null, sid: null, source: 'device' }
 	});
 	const snapshots = createSnapshotter({ db: db, dir: join(dir, 'snapshots'), keep: 2, now: () => clock.now });
-	return { dir: dir, clock: clock, saveKalla: saveKalla, snapshots: snapshots };
+	return { dir: dir, db: db, clock: clock, saveKalla: saveKalla, snapshots: snapshots };
 };
 
 describe('database snapshots', () => {
@@ -46,6 +46,25 @@ describe('database snapshots', () => {
 		expect(sameDay).toBeNull();
 		expect(existsSync(first as string)).toBe(false);
 		expect(third).toMatch(/sync-steel-2026-11-24\.db$/);
+	});
+
+	it('never keep a failed or interrupted copy as the day\'s snapshot, so the next check retries', () => {
+		const { dir, db, snapshots } = setup();
+		const snapshotDir = join(dir, 'snapshots');
+		mkdirSync(snapshotDir, { recursive: true });
+		// What a copy killed mid-write leaves behind
+		writeFileSync(join(snapshotDir, 'sync-steel-2026-11-22.db.partial'), 'half a database');
+
+		// SQLite refuses VACUUM inside a transaction, standing in for a disk error
+		db.exec('BEGIN');
+		expect(() => snapshots.snapshotIfDue()).toThrow();
+		db.exec('ROLLBACK');
+		expect(listSnapshots(snapshotDir)).toEqual([]);
+
+		const retried = snapshots.snapshotIfDue();
+
+		expect(retried).toMatch(/sync-steel-2026-11-22\.db$/);
+		expect(readdirSync(snapshotDir)).toEqual([ 'sync-steel-2026-11-22.db' ]);
 	});
 
 	// The restore path: snapshot -> export-room.ts -> the GM's import endpoint
