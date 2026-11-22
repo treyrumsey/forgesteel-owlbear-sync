@@ -21,6 +21,7 @@ The test steps are in the [runbook](../docs/table-link/spike-results.md#owlbear-
 **Serving notes:**
 - The Vite server sends `Access-Control-Allow-Origin` for `*.owlbear.rodeo`, because Owlbear fetches the manifest and icons cross-origin.
 - `localhost` only works in a browser on the same machine. Other devices, iPads included, need the extension served over HTTPS.
+- Owlbear validates the manifest when you add the extension; for example, it rejects a `description` longer than 128 characters.
 
 ## What the spike does
 
