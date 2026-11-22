@@ -68,7 +68,7 @@ export const SyncSteelConnectedPanel = (props: Props) => {
 				<Alert
 					type='success'
 					showIcon={true}
-					title={<>Connected as <b>{me.seat.name}</b>{me.seat.isGm ? ' (GM)' : ''}</>}
+					title={<>Connected as <b>{me.seat.name}</b>{me.seat.isGm && (me.seat.name !== 'GM') ? ' (GM)' : ''}</>}
 					description='Your heroes and homebrew are saved to the room, so they come back on any device that joins your seat.'
 				/>
 			</Space>

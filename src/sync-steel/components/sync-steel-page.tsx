@@ -3,6 +3,7 @@ import { AppFooter, FooterParams } from '@/components/panels/app-footer/app-foot
 import { AppHeader } from '@/components/panels/app-header/app-header';
 import { ConnectionSettings } from '@/models/connection-settings';
 import { ErrorBoundary } from '@/components/controls/error-boundary/error-boundary';
+import { FeatureFlags } from '@/utils/feature-flags';
 import { SyncSteelConnectedPanel } from '@/sync-steel/components/connected-panel';
 import { SyncSteelConnection } from '@/sync-steel/logic/sync-steel-connection';
 import { SyncSteelCreateRoomPanel } from '@/sync-steel/components/create-room-panel';
@@ -24,6 +25,12 @@ export const SyncSteelPage = (props: Props) => {
 	const connected = SyncSteelConnection.isConnected(props.connectionSettings, host);
 
 	const save = async (settings: ConnectionSettings) => {
+		if (settings.useManualWarehouse) {
+			// If the server later rejects this device (revoked, or the database reset), Forge Steel stops at its
+			// data load error before this page can load. That screen offers the Warehouse settings, to switch
+			// back to local storage and rejoin, only with this flag ("Treat Curve") on.
+			FeatureFlags.add(FeatureFlags.warehouse.code);
+		}
 		await props.persistConnectionSettings(settings);
 		window.location.reload();
 	};
