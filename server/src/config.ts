@@ -1,3 +1,4 @@
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export interface ServerConfig {
@@ -15,6 +16,9 @@ export interface ServerConfig {
 	production: boolean;
 	revisionKeepLast: number;
 	revisionDailyDays: number;
+	// Null when snapshots are off
+	snapshotDir: string | null;
+	snapshotKeep: number;
 }
 
 export type Env = Record<string, string | undefined>;
@@ -78,6 +82,11 @@ export const loadConfig = (env: Env): { config: ServerConfig, warnings: string[]
 		throw new Error('DATABASE_PATH must be set to a file on the volume, such as /data/sync-steel.db');
 	}
 
+	const snapshotKeep = integer(env, 'SNAPSHOT_KEEP', 14, 0);
+	const snapshotDir = ((databasePath === ':memory:') || (snapshotKeep === 0))
+		? null
+		: env.SNAPSHOT_DIR?.trim() || join(dirname(databasePath), 'snapshots');
+
 	const devSeed = flag(env.DEV_SEED);
 	if (devSeed && production) {
 		throw new Error('DEV_SEED is for local development only');
@@ -98,7 +107,9 @@ export const loadConfig = (env: Env): { config: ServerConfig, warnings: string[]
 			devSeed: devSeed,
 			production: production,
 			revisionKeepLast: integer(env, 'REVISION_KEEP_LAST', 100, 1),
-			revisionDailyDays: integer(env, 'REVISION_DAILY_DAYS', 90, 0)
+			revisionDailyDays: integer(env, 'REVISION_DAILY_DAYS', 90, 0),
+			snapshotDir: snapshotDir,
+			snapshotKeep: snapshotKeep
 		},
 		warnings: warnings
 	};

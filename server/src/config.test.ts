@@ -39,6 +39,12 @@ describe('loadConfig', () => {
 		expect(config).toMatchObject({ port: 9000, maxRooms: 3, trustProxy: true, corsOrigins: [ 'https://a.example', 'https://b.example' ] });
 		expect(() => loadConfig({ MAX_ROOMS: 'lots' })).toThrow('MAX_ROOMS must be a whole number');
 	});
+
+	it('keeps snapshots next to the database file unless they\'re turned off', () => {
+		expect(loadConfig({ DATABASE_PATH: '/data/sync-steel.db' }).config.snapshotDir).toBe('/data/snapshots');
+		expect(loadConfig({ DATABASE_PATH: '/data/sync-steel.db', SNAPSHOT_KEEP: '0' }).config.snapshotDir).toBeNull();
+		expect(loadConfig({ DATABASE_PATH: ':memory:' }).config.snapshotDir).toBeNull();
+	});
 });
 
 describe('parseList', () => {

@@ -1,4 +1,5 @@
 import { createApp, listen } from './app.ts';
+import { createSnapshotter } from './snapshots.ts';
 import { loadConfig } from './config.ts';
 import { migrate } from './db/migrate.ts';
 import { openDatabase } from './db/database.ts';
@@ -46,11 +47,16 @@ if (config.devSeed) {
 	seedDevRoom(services).forEach(writeLine);
 }
 
+const stopSnapshots = config.snapshotDir
+	? createSnapshotter({ db: db, dir: config.snapshotDir, keep: config.snapshotKeep, log: writeLine }).start()
+	: () => undefined;
+
 const { server, port } = await listen(app, config.port);
 writeLine(`Sync Steel server listening on http://localhost:${port}`);
 writeLine(`CORS origins: ${config.corsOrigins.join(', ')}`);
 
 const shutdown = () => {
+	stopSnapshots();
 	server.close(() => {
 		db.close();
 		process.exit(0);
