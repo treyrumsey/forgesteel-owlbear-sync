@@ -2,6 +2,91 @@
 
 Decisions that change or refine the [research report](./forgesteel-owlbear-sync-report.md), newest first. Each says what was decided, why, and what it replaced. Setup and current state are in [SETUP.md](./SETUP.md).
 
+## Phase 2: the fork goes live (22 Nov 2026)
+
+All confirmed with the user before building. Built on branch `sync-steel/phase-2`.
+
+### Domain: syncsteel.app, bought through Railway
+
+**Decision:** the web app lives at **`https://syncsteel.app`**, the bare domain. The user bought it through Railway, so Railway's DNS serves it, and it's attached to the `fs-web` service. **The api keeps its generated domain** (`api-production-d612ac15.up.railway.app`).
+
+**Why:**
+- **The app's domain is permanent.** Installed home-screen apps and browser storage are tied to it.
+- **The api's address isn't.** Players never type it: the build bakes in a placeholder that `fs-web` fills at startup, and each device saves the address when it joins. Moving the api later only means players rejoin.
+
+**Notes:**
+- `.app` is on the HSTS preload list, so the site is HTTPS-only.
+- Railway is the domain's registrant contact. Transfers out are possible after ICANN's 60-day lock.
+
+### Branding at build time, with no upstream edits
+
+**Decision:** `vite.sync-steel.config.ts` imports upstream's `vite.config.ts` unchanged and adds one plugin (`src/sync-steel/build/branding.ts`). The plugin:
+- rewrites `index.html`: the title, the Apple and Open Graph tags, and the icons;
+- **removes upstream's Google Analytics tag**, which would otherwise report the group's use to upstream's account;
+- rewrites the emitted `manifest.json`: the name, description, colours and icons, dropping upstream's screenshots.
+
+The icon is original (sync arrows around a hex nut), in `public/sync-steel/`, rendered by `scripts/sync-steel/render-icons.mjs`.
+
+**Why reuse rather than copy upstream's config:** upstream's build, PWA and workbox settings stay in step with every merge, with nothing to drift.
+
+**Drift guard:** every rewrite must match, or the build fails. `branding.test.ts` runs the rewrites against upstream's real `index.html` in CI.
+
+**Not rebranded:** in-app "Forge Steel" text (the logo panel, page titles, the about modal). The license notices stay.
+
+### The Sync Steel page: its own route and a footer button
+
+**Decision:** a `/sync-steel` route in `app-routes.tsx` and a **Sync Steel** button in the footer's actions (`app-footer.tsx`): two lines each, and the only upstream edits so far. `src/index.tsx` stays untouched until Phase 3's provider. `contract.test.ts` fails if a merge drops either hook.
+
+**What the page does:**
+- **Join:** enter the code, then pick a seat or create one. The GM seat also asks for the GM key, and a GM's extra device can join with the GM key alone.
+- **Create a room:** shows the join code and GM key **once**, behind an "I've saved these" check.
+- **GM tools:**
+  - seats and devices, with rename and disconnect;
+  - a new join code;
+  - export, with a reminder after 7 days without one;
+  - restore from an export or a daily snapshot, always as a dry run first.
+
+**Out of scope until Phase 6:** the revision, undelete and audit views.
+
+**How joining connects:** it writes upstream's own manual Warehouse `ConnectionSettings` (host and device token) through the route's `persistConnectionSettings`, then reloads. It also turns on the `Treat Curve` feature flag. Without the flag, a device the server rejects (revoked, or after a database reset) is stuck on upstream's data load error, which offers the Warehouse settings (to switch back to local) only when the flag is on.
+
+**The api address:** `src/sync-steel/config.ts` reads `VITE_SYNC_STEEL_API_HOST`. The branded build defines it as the placeholder `FORGESTEEL_SYNC_STEEL_API_HOST`, which upstream's `nginx/env.sh` replaces at container start. Unset (or `npm start`), it falls back to `http://localhost:8787`.
+
+### fs-web: its own Dockerfile
+
+**Decision:** `Dockerfile.sync-steel` builds `fs-web`. It runs `node:26-slim`, honours `.npmrc`, copies only what the web build needs, builds with the branded config, and serves with upstream's nginx config and `env.sh`. Upstream's `Dockerfile` (`node:latest`, no `.npmrc`) is unchanged.
+
+### Railway: CLI-applied settings for both services
+
+**Decision:** both services are configured with the Railway CLI. The commands are recorded in [railway.md](./railway.md). Railway IaC is still not used: it would need the `railway` npm SDK outside upstream's `package.json`, for two services' worth of settings.
+
+`fs-web`'s watch paths are `**` minus `server/`, `obr-extension/` and `docs/`; the api's stay `server/**`. Both deploy `main` with "Wait for CI".
+
+### Upstream sync: a daily workflow with a fine-grained PAT
+
+**Decision:** `.github/workflows/sync-steel-upstream.yml` runs daily.
+1. It merges upstream `main` into `sync/upstream-<sha>` (never a rebase) and opens a PR, or updates the open one.
+2. It turns on auto-merge with a merge commit, gated by the required `check` status from Sync Steel CI.
+
+**Authentication:** `SYNC_STEEL_UPSTREAM_TOKEN` is a fine-grained PAT for this repo only, with contents, pull requests and workflows read and write, and a one-year expiry. It isn't a GitHub App: a PAT is less setup for a single-maintainer fork. When it expires, the workflow opens an issue.
+
+**What it won't merge alone:**
+- **A merge that changes `.github/workflows/`** gets a review label instead of auto-merge. Upstream workflows added to `main` would be enabled in the fork.
+- **Conflicts** open an `upstream-sync` issue.
+
+**Contract tests** (`src/sync-steel/contract.test.ts`) add to the Warehouse compatibility and stamp tests. They cover:
+- the `HeroLogic` getters;
+- the `HeroState` fields;
+- the data context's entry points;
+- the `ConnectionSettings` shape;
+- the two hooks.
+
+**Deferred to Phase 4:** the external checks on Draw Steel Tools' schema and the Owlbear SDK version.
+
+### Production reset before go-live
+
+**Decision:** wipe the api's database and snapshots before the group starts. That removes the inert Phase 1 drill room, its audit entries, and test rooms from Phase 2's deployment checks.
+
 ## Phase 1: backend storage (22 Nov 2026)
 
 All confirmed with the user before building. Built on branch `sync-steel/phase-1`.

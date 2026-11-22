@@ -28,7 +28,7 @@ npm run dev --prefix server                # restarts on file changes
 
 The database is `server/.data/dev.db` (git-ignored); delete the folder to start over.
 
-To connect the fork: write `ConnectionSettings` with host `http://localhost:8787` and a device token. Phase 2's Sync Steel page will do this. Until then, use Settings → Advanced → Feature Flags `Treat Curve`, then Settings → Connections.
+To connect the fork: open the **Sync Steel** page (footer button) in `npm start`, which uses `http://localhost:8787`, and create or join a room. It writes Forge Steel's `ConnectionSettings` with this host and a device token. To use a `DEV_SEED` token instead: Settings → Advanced → Feature Flags `Treat Curve`, then Settings → Connections.
 
 ## Configuration
 
@@ -37,7 +37,7 @@ To connect the fork: write `ConnectionSettings` with host `http://localhost:8787
 | `PORT` | `8787` | Listen port (Railway sets it) |
 | `DATABASE_PATH` | `server/.data/dev.db` locally; **required** on Railway | The SQLite file, on the volume in production |
 | `JWT_SECRET`, `JWT_REFRESH_SECRET`, `TOKEN_HASH_KEY` | fixed development values locally; **required** on Railway (32+ characters, all different) | Signing keys for access and refresh tokens, and the HMAC key for stored secrets. **Changing `TOKEN_HASH_KEY` invalidates every device token, join code and GM key** |
-| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Exact origins allowed to make credentialed requests. Phase 2 adds the fork's domain |
+| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Exact origins allowed to make credentialed requests. Production lists `https://syncsteel.app` too (see [railway.md](../docs/sync-steel/railway.md)) |
 | `TRUST_PROXY` | off | Read the client IP from `X-Real-IP` (Railway sets it) for rate limits |
 | `MAX_ROOMS` | `10` | Room creation is open, so the server holds at most this many rooms |
 | `ACCESS_TOKEN_TTL_SECONDS`, `REFRESH_TOKEN_TTL_SECONDS` | 15 minutes, 90 days | Token lifetimes |
@@ -141,7 +141,7 @@ railway domain --service api --port 8080
 
 **Deploy from the repo root:** `railway up --service api --ci -m "<summary>"`. The Dockerfile copies only `server/`, and the build context is the whole repo, so later phases can import `src/`.
 
-Each deploy restarts the service for a few seconds, so deploy outside play sessions. After Phase 1 merges, connect the service to the repo's `main` branch with "Wait for CI".
+Each deploy restarts the service for a few seconds, so deploy outside play sessions. The service deploys the repo's `main` branch with "Wait for CI". The web app service, `fs-web`, is in [railway.md](../docs/sync-steel/railway.md).
 
 ## Develop
 
