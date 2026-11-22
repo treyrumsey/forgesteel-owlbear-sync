@@ -7,6 +7,7 @@ import { Hero } from '@/models/hero';
 import { Modal } from '@/components/modals/modal/modal';
 import { Options } from '@/models/options';
 import shield from '@/assets/shield.png';
+import { syncSteelFooterAction } from '@/sync-steel/components/sync-steel-footer-action';
 import { useIsSmall } from '@/hooks/use-is-small';
 import { useNavigation } from '@/hooks/use-navigation';
 import { useState } from 'react';
@@ -54,6 +55,7 @@ export const AppFooter = (props: Props) => {
 	};
 
 	const actions: ButtonConfig[] = [
+		syncSteelFooterAction(isSmall),
 		{ type: 'button', label: isSmall ? undefined : 'Reference', icon: <ReadOutlined />, tooltip: 'Reference', onClick: () => props.params.showReference(props.hero) },
 		{ type: 'button', label: isSmall ? undefined : 'Settings', icon: <SettingOutlined />, tooltip: 'Settings', onClick: props.params.showSettings },
 		{ type: 'button', label: isSmall ? undefined : 'About', icon: <InfoCircleOutlined />, tooltip: 'About', onClick: props.params.showAbout },

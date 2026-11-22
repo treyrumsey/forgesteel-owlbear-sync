@@ -603,6 +603,7 @@ No time estimates; each phase leaves something usable.
    - public fork, branding, Railway `fs-web`;
    - daily merge workflow, contract tests, Wait for CI;
    - Sync Steel room panel.
+   - **Done 22 Nov 2026:** `fs-web` at https://syncsteel.app with build-time branding, a Sync Steel page (join, create a room, GM tools), the daily upstream-merge workflow and contract tests. See [decisions](./decisions.md#phase-2-the-fork-goes-live-22-nov-2026).
 3. **Live Forge Steel side:** the WebSocket hub, `SyncSteelProvider`, the revision stamp and three-way merge.
 4. **Owlbear, Forge Steel → token:** room binding, linking, summaries, elected writer, pacing, Draw Steel Tools writes, condition badges.
 5. **Owlbear, token → Forge Steel:** edit forwarding, patches, the Party Continuity stale-restore guard, condition editing.
