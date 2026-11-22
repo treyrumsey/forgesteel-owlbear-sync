@@ -1,0 +1,65 @@
+name: Sync Steel CI
+
+# Our own checks for the fork. Upstream's workflows (digitalocean.yml, do-registry-cleanup.yml)
+# stay disabled in this repo: they deploy to upstream's registry.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-steel-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            obr-extension/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix server
+          npm ci --prefix obr-extension
+
+      - name: Lint
+        run: |
+          npm run lint
+          npx eslint server/src obr-extension/src
+
+      - name: Type check
+        run: |
+          npx tsc -p tsconfig.json
+          npm run typecheck --prefix server
+
+      - name: Build the Owlbear extension
+        run: npm run build --prefix obr-extension
+
+      - name: Test
+        run: npx vitest run
+
+      # The root audit fails on upstream's dev dependencies (a known baseline), so only our packages are audited
+      - name: Audit our packages
+        run: |
+          npm audit --prefix server
+          npm audit --prefix obr-extension
