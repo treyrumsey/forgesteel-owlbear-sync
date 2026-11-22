@@ -1,6 +1,6 @@
-# Table Link server
+# Sync Steel server
 
-The backend for the Table Link fork: a Warehouse-compatible API, plus later rooms, revisions and the WebSocket hub (report §4.3–4.5).
+The backend for the Sync Steel fork: a Warehouse-compatible API, plus later rooms, revisions and the WebSocket hub (report §4.3–4.5).
 
 **Current state:** a **Phase 0 stub**. It's in memory only and has a fixed set of device tokens, so it isn't for real data.
 
@@ -41,11 +41,11 @@ The stub matches the reference [Forge Steel Warehouse](https://github.com/Verita
 - PUTs return `204`, or `400` when the id doesn't match the URL;
 - an expired access token returns `401 {"msg":"Token has expired"}`.
 
-**Table Link additions:**
-- **Stamped reads:** every full hero read carries `_tableLink: {rev}`.
+**Sync Steel additions:**
+- **Stamped reads:** every full hero read carries `_syncSteel: {rev}`.
 - **Monotonic revisions:** revision numbers are never reused for a hero id, even after a delete.
 - **Echo detection:** a PUT that changes nothing keeps the revision.
-- **Merge-base logging:** each hero save logs the base a three-way merge would use: the later of the stamp and the session's last write (see [spike-results.md](../docs/table-link/spike-results.md), finding 2). Bases from a deleted copy of the hero are flagged.
+- **Merge-base logging:** each hero save logs the base a three-way merge would use: the later of the stamp and the session's last write (see [spike-results.md](../docs/sync-steel/spike-results.md), finding 2). Bases from a deleted copy of the hero are flagged.
 
 ## Develop
 

@@ -8,9 +8,9 @@ import { WarehouseService } from '@/services/storage/warehouse-service';
 import { createStubServer } from './stub-server.ts';
 
 // Forge Steel's own, unmodified WarehouseService talking to the stub over real HTTP:
-// the fork's storage layer needs no code changes to use the Table Link backend.
+// the fork's storage layer needs no code changes to use the Sync Steel backend.
 
-type StampedHero = Hero & { _tableLink?: { rev: number } };
+type StampedHero = Hero & { _syncSteel?: { rev: number } };
 
 let clock = Date.now();
 const requests: string[] = [];
@@ -59,13 +59,13 @@ describe('upstream WarehouseService against the stub', () => {
 		expect(await service.getHeroes()).toEqual([ { id: 'compat-hero', name: 'Kalla', folder: 'Party' } ]);
 
 		const loaded = await service.getHero('compat-hero') as StampedHero;
-		expect(loaded._tableLink).toEqual({ rev: 1 });
+		expect(loaded._syncSteel).toEqual({ rev: 1 });
 
 		loaded.state.staminaDamage = 4;
 		await service.putHero(loaded);
 		const reloaded = await service.getHero('compat-hero') as StampedHero;
 		expect(reloaded.state.staminaDamage).toBe(4);
-		expect(reloaded._tableLink).toEqual({ rev: 2 });
+		expect(reloaded._syncSteel).toEqual({ rev: 2 });
 
 		await service.deleteHero('compat-hero');
 		expect(await service.getHeroes()).toEqual([]);

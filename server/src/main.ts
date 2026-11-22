@@ -38,7 +38,7 @@ const server = createStubServer({
 
 server.listen(Number(env.PORT ?? 8787), () => {
 	const address = server.address() as AddressInfo;
-	writeLine(`Table Link stub Warehouse listening on http://localhost:${address.port}`);
+	writeLine(`Sync Steel stub Warehouse listening on http://localhost:${address.port}`);
 	writeLine(`Seats: ${[ ...new Set(Object.values(deviceTokens)) ].join(', ')} (${Object.keys(deviceTokens).length} device tokens)`);
 	writeLine(`CORS origins: ${corsOrigins.join(', ')}`);
 });

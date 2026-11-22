@@ -134,20 +134,20 @@ describe('stub Warehouse: data', () => {
 		expect(await (await call('/data/forgesteel-heroes?fields=name,folder', aliceIpad)).json())
 			.toEqual({ data: [ { id: 'hero-1', name: 'Kalla', folder: 'Party' } ] });
 		expect(await (await call('/data/forgesteel-heroes/hero-1', aliceIpad)).json())
-			.toEqual({ data: { ...hero, _tableLink: { rev: 1 } } });
+			.toEqual({ data: { ...hero, _syncSteel: { rev: 1 } } });
 		expect((await call('/data/forgesteel-heroes/hero-1', bob)).status).toBe(404);
 	});
 
 	it('keeps the revision for an echoed hero and bumps it for a change', async () => {
 		const token = (await connect('token-b')).access_token;
 		const put = (body: object) => call('/data/forgesteel-heroes/hero-2', token, { method: 'PUT', body: JSON.stringify(body) });
-		const rev = async () => (await (await call('/data/forgesteel-heroes/hero-2', token)).json()).data._tableLink.rev;
+		const rev = async () => (await (await call('/data/forgesteel-heroes/hero-2', token)).json()).data._syncSteel.rev;
 
 		await put({ id: 'hero-2', name: 'Vex', state: { staminaDamage: 0 } });
-		await put({ state: { staminaDamage: 0 }, name: 'Vex', id: 'hero-2', _tableLink: { rev: 1 } });
+		await put({ state: { staminaDamage: 0 }, name: 'Vex', id: 'hero-2', _syncSteel: { rev: 1 } });
 		expect(await rev()).toBe(1);
 
-		await put({ id: 'hero-2', name: 'Vex', state: { staminaDamage: 5 }, _tableLink: { rev: 1 } });
+		await put({ id: 'hero-2', name: 'Vex', state: { staminaDamage: 5 }, _syncSteel: { rev: 1 } });
 		expect(await rev()).toBe(2);
 	});
 
@@ -157,7 +157,7 @@ describe('stub Warehouse: data', () => {
 		const ipad = (await connect('token-a2')).access_token;
 		const put = (token: string, damage: number) => call('/data/forgesteel-heroes/hero-3', token, {
 			method: 'PUT',
-			body: JSON.stringify({ id: 'hero-3', name: 'Ash', state: { staminaDamage: damage }, _tableLink: { rev: 1 } })
+			body: JSON.stringify({ id: 'hero-3', name: 'Ash', state: { staminaDamage: damage }, _syncSteel: { rev: 1 } })
 		});
 		await put(laptop, 0);
 
@@ -178,11 +178,11 @@ describe('stub Warehouse: data', () => {
 		const url = '/data/forgesteel-heroes/hero-4';
 		const put = (damage: number, stampRev?: number) => call(url, token, {
 			method: 'PUT',
-			body: JSON.stringify({ id: 'hero-4', name: 'Rook', state: { staminaDamage: damage }, ...(stampRev ? { _tableLink: { rev: stampRev } } : {}) })
+			body: JSON.stringify({ id: 'hero-4', name: 'Rook', state: { staminaDamage: damage }, ...(stampRev ? { _syncSteel: { rev: stampRev } } : {}) })
 		});
 		await put(0);
 		await put(1);
-		const stale = (await (await call(url, token)).json()).data._tableLink.rev;
+		const stale = (await (await call(url, token)).json()).data._syncSteel.rev;
 		await call(url, token, { method: 'DELETE' });
 
 		logLines.length = 0;
@@ -190,7 +190,7 @@ describe('stub Warehouse: data', () => {
 		const otherSession = (await connect('token-b')).access_token;
 		await call(url, otherSession, {
 			method: 'PUT',
-			body: JSON.stringify({ id: 'hero-4', name: 'Rook', state: { staminaDamage: 9 }, _tableLink: { rev: stale } })
+			body: JSON.stringify({ id: 'hero-4', name: 'Rook', state: { staminaDamage: 9 }, _syncSteel: { rev: stale } })
 		});
 		const heroLines = logLines.filter(line => line.includes('hero hero-4'));
 

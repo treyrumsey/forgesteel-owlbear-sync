@@ -168,7 +168,7 @@ export const createStubServer = (options: StubServerOptions): Server => {
 		}
 	};
 
-	const stampHero = (hero: StoredHero) => ({ ...hero.data, _tableLink: { rev: hero.rev } });
+	const stampHero = (hero: StoredHero) => ({ ...hero.data, _syncSteel: { rev: hero.rev } });
 
 	// Forge Steel ignores the PUT response, so a client keeps the stamp from when it loaded the hero.
 	// Its own later writes are also ancestors of its copy, so the merge base is the later of the two.
@@ -177,7 +177,7 @@ export const createStubServer = (options: StubServerOptions): Server => {
 			return { status: 400, body: 'Hero id must be present and match the url' };
 		}
 
-		const { _tableLink: stamp, ...data } = body;
+		const { _syncSteel: stamp, ...data } = body;
 		const stampRev = isObject(stamp) && (typeof stamp.rev === 'number') ? stamp.rev : null;
 		let sessionWrites = seat.sessionWrites.get(id);
 		if (!sessionWrites) {

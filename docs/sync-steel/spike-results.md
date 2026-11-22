@@ -19,8 +19,8 @@ The spike checks the riskiest assumptions in the [research report](./forgesteel-
 |---|---|---|
 | `HeroLogic` in Node: summary values and primary heroic resource | ✅ | `HeroSummaryLogic` gives the rules values:<br>• Fury 21 stamina / 10 recoveries;<br>• Beastheart 21 / 12, and 129 at level 10;<br>• Talent 18 / 8.<br>Primary resource:<br>• Ferocity, not Rampage;<br>• negative Clarity kept;<br>• the epic resource is never primary. |
 | Heroes with more than one heroic resource | ✅ | The Beastheart's primary resource is the first `heroic` resource, read and written by feature id. |
-| `_tableLink` survives copy, update, load and save (unit) | ✅ | Survives:<br>• `Utils.copy` and `HeroUpdateLogic.updateHero`;<br>• a Warehouse GET → `DataManager.saveHero` PUT;<br>• a local save and reload.<br>Mutation checks fail the tests, as they should. |
-| `_tableLink` round trip through the **real UI** | ✅ | Load → Vitals modal (damage) and Resources modal (Clarity −2) → debounced PUTs all carried the stamp. The server stored `talent-resource` = −2 by feature id. See [finding 2](#2-the-stamp-alone-is-not-a-safe-merge-base). |
+| `_syncSteel` survives copy, update, load and save (unit) | ✅ | Survives:<br>• `Utils.copy` and `HeroUpdateLogic.updateHero`;<br>• a Warehouse GET → `DataManager.saveHero` PUT;<br>• a local save and reload.<br>Mutation checks fail the tests, as they should. |
+| `_syncSteel` round trip through the **real UI** | ✅ | Load → Vitals modal (damage) and Resources modal (Clarity −2) → debounced PUTs all carried the stamp. The server stored `talent-resource` = −2 by feature id. See [finding 2](#2-the-stamp-alone-is-not-a-safe-merge-base). |
 | Stub backend: `/healthz`, `/connect` CORS preflight with credentials, expired-token 401 | ✅ | Automated tests, plus a real browser. Forge Steel's **Test Connection** showed "Success! (v1.0.0-stub)", with the requests `GET /healthz` → `OPTIONS /connect 204` → `POST /connect 200`. |
 | Upstream `WarehouseService`, unmodified, against the stub | ✅ | Real HTTP: heroes, homebrew, session and hidden ids. Expired token → `401 Token has expired` → `POST /refresh` → retry succeeds. Forge Steel shows the stub's `{message}` text to the user. |
 | Owlbear accepts our writes to DST data; DST re-renders; DST's schema accepts the values | ✅ | A and B:<br>• every write passed both checks;<br>• notes, gmOnly and the resource button were never touched;<br>• negative stamina and Clarity were accepted. |
@@ -36,10 +36,10 @@ The spike checks the riskiest assumptions in the [research report](./forgesteel-
 ### 1. Upstream hides manual Warehouse settings behind a feature flag
 - **What:** Settings → Connections shows only Patreon until the **"Manual Forge Steel Warehouse connections"** feature flag is on. To turn it on, go to Settings → **Advanced** → Feature Flags and enter the phrase **`Treat Curve`**. The source only contains its hash, `1551245932421255`; the phrase comes from the reference Warehouse README.
 - **Effect:** the migration guide (report §9, step 2.2) needs an extra first step for forgesteel.net users.
-- **Fork:** unaffected. The Table Link room panel will write `ConnectionSettings` directly.
+- **Fork:** unaffected. The Sync Steel room panel will write `ConnectionSettings` directly.
 
 ### 2. The stamp alone is not a safe merge base
-`putHero` ignores the response, so a client keeps the `_tableLink.rev` it **loaded** for every later save in that session. Real-UI evidence from the stub, before the fix:
+`putHero` ignores the response, so a client keeps the `_syncSteel.rev` it **loaded** for every later save in that session. Real-UI evidence from the stub, before the fix:
 
 ```
 hero … "Keth" rev 1 -> 2 (stamp rev 1)
@@ -137,7 +137,7 @@ npm run dev --prefix obr-extension      # serves http://localhost:5174/manifest.
 **Add it to the room:**
 1. In the room, open the Extensions menu and add a custom extension with the URL `http://localhost:5174/manifest.json`.
 2. Every desktop browser that opens the popover needs the dev server reachable on its own `localhost`. Use the same machine, or serve the extension over HTTPS for other devices (an iPad included).
-3. Open the **Table Link spike** popover. **Copy log** after each test and paste the output below.
+3. Open the **Sync Steel spike** popover. **Copy log** after each test and paste the output below.
 
 **Before the tests,** create two character tokens:
 - **GM token:** created by the GM;
@@ -177,7 +177,7 @@ Set both up as **heroes** in Draw Steel Tools, and give each some `notes`, `gmOn
 | E1. Scene switch | ✅ no rewrites | Charlie's values were identical after switching away and back; no `DST change` lines. |
 | E2. Party Continuity | Deferred | |
 
-**Raw logs:** [GM, full](./spike-logs/2026-11-22-owlbear-gm.log) and [player, key lines](./spike-logs/2026-11-22-owlbear-player-excerpt.log). The extension logs in UTC.
+**Raw logs:** [GM, full](./spike-logs/2026-11-22-owlbear-gm.log) and [player, key lines](./spike-logs/2026-11-22-owlbear-player-excerpt.log). The extension logs in UTC. The logs predate the rename to Sync Steel, so they still say "Table Link" (e.g. `_tableLink`, `com.treyrumsey.table-link-spike`).
 
 ## Reproducing the browser checks
 

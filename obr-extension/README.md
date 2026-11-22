@@ -1,6 +1,6 @@
-# Table Link Owlbear extension
+# Sync Steel Owlbear extension
 
-The Owlbear Rodeo companion extension for Table Link (report §4.7).
+The Owlbear Rodeo companion extension for Sync Steel (report §4.7).
 
 **Current state:** a **Phase 0 spike tool** that tests writing to Draw Steel Tools' token data. It writes test values to hero tokens, so **use it in a test room only**.
 
@@ -13,10 +13,10 @@ npm run dev --prefix obr-extension          # http://localhost:5174/manifest.jso
 ```
 
 1. In an Owlbear Rodeo room, add a custom extension with the URL `http://localhost:5174/manifest.json`.
-2. Open the **Table Link spike** popover.
+2. Open the **Sync Steel spike** popover.
 3. Select a Draw Steel Tools hero token.
 
-The test steps are in the [runbook](../docs/table-link/spike-results.md#owlbear-runbook-manual).
+The test steps are in the [runbook](../docs/sync-steel/spike-results.md#owlbear-runbook-manual).
 
 **Serving notes:**
 - The Vite server sends `Access-Control-Allow-Origin` for `*.owlbear.rodeo`, because Owlbear fetches the manifest and icons cross-origin.
@@ -46,4 +46,4 @@ npx eslint obr-extension/src
   - writes only finite numbers and strings (DST's zod 4 schema throws otherwise and breaks the token);
   - patches only the synced fields.
 - Keep it free of SDK imports, so its tests run under the repo's Vitest without `npm ci --prefix obr-extension`.
-- Store Table Link's own data under our own metadata key, never inside DST's object. DST drops unknown keys when it writes.
+- Store Sync Steel's own data under our own metadata key, never inside DST's object. DST drops unknown keys when it writes.

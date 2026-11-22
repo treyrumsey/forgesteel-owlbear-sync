@@ -11,7 +11,7 @@ Everything a new session needs to work on the Forge Steel ⇄ Owlbear Rodeo sync
 |---|---|
 | Fork | [`treyrumsey/forgesteel-owlbear-sync`](https://github.com/treyrumsey/forgesteel-owlbear-sync), public, linked to `andyaiken/forgesteel` |
 | Local clone | `~/dev/forgesteel-owlbear-sync`. Remotes: `origin` (your fork) and `upstream` (`git@github.com:andyaiken/forgesteel.git`) |
-| Branch | **`main`** holds Phase 0, merged from `table-link/spike` on 22 Nov 2026, on top of upstream `3c6b4ab` ("Dice false", 20 Nov 2026). Work on **one branch per phase off `main`** (next: `table-link/phase-1`) and merge back by PR **with a merge commit**; never squash or rebase |
+| Branch | **`main`** holds Phase 0, merged from `table-link/spike` on 22 Nov 2026, on top of upstream `3c6b4ab` ("Dice false", 20 Nov 2026). Work on **one branch per phase off `main`** (next: `sync-steel/phase-1`) and merge back by PR **with a merge commit**; never squash or rebase |
 | Dependencies | Installed with `npm ci` on Node 26 |
 | Node | **v26.13.1 "Lithium"**, the latest stable release and the Active LTS. It's the nvm `default`. It satisfies `engines.node >= 24`. See [Node version](#node-version) |
 | nvm | v0.41.0 at `~/.nvm`, upgraded from 0.25.1 (2015), which couldn't list LTS or recent releases |
@@ -20,7 +20,7 @@ Everything a new session needs to work on the Forge Steel ⇄ Owlbear Rodeo sync
 | Docker | Installed (`/usr/local/bin/docker`); useful for a local Postgres and for building the `Dockerfile` |
 | Postgres client | Not installed (optional) |
 | Railway CLI | v5.75.0, installed with Railway's own installer (**not** Homebrew) at `~/.railway/bin/railway`, and logged in. `~/.zshrc` adds it to `PATH` by sourcing `~/.railway/env`. Agent and other non-interactive shells skip `~/.zshrc`, so run `. ~/.railway/env` first (as with `. ~/.nvm/nvm.sh`). Update it the same way it was installed, not with `brew` |
-| Code written | Phase 0 code is done; results are in [spike-results.md](./spike-results.md).<br>• [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md).<br>• `HeroSummaryLogic` and the `_tableLink` tests in [`src/table-link/`](../../src/table-link/).<br>• The stub Warehouse in [`server/`](../../server/).<br>• The Owlbear spike extension in [`obr-extension/`](../../obr-extension/).<br>`npm run check` runs all of their tests: lint, tsc and vitest pass; the audit is unchanged from the baseline. |
+| Code written | Phase 0 code is done; results are in [spike-results.md](./spike-results.md).<br>• [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md).<br>• `HeroSummaryLogic` and the `_syncSteel` tests in [`src/sync-steel/`](../../src/sync-steel/).<br>• The stub Warehouse in [`server/`](../../server/).<br>• The Owlbear spike extension in [`obr-extension/`](../../obr-extension/).<br>`npm run check` runs all of their tests: lint, tsc and vitest pass; the audit is unchanged from the baseline. |
 | Still open (optional) | E2, the Party Continuity stale-restore test (needs a paid membership); C3, player writes with Character Update removed; the Transfer page with homebrew; hero export/import. None blocks Phase 1 |
 
 ### Node version
@@ -50,7 +50,7 @@ npm run check                # lint + tsc + vitest + npm audit
 
 # 3. Start from main, on a branch for the phase
 git switch main && git pull
-git switch -c table-link/phase-1
+git switch -c sync-steel/phase-1
 ```
 
 If `npm audit` fails on the untouched upstream code, note it as a baseline and don't fix it in the fork. It currently does; see the table above.
@@ -88,13 +88,13 @@ To connect the fork (or forgesteel.net) to a Warehouse:
 
 ## Working rules for this repo
 
-- **Minimal diff to upstream:** add new files only. **Never edit** `src/components/main/main.tsx`, `src/contexts/data-context.tsx`, `src/hooks/use-persistence.ts` or `src/services/storage/warehouse-service.ts`. The only planned upstream edits are about two hook lines: mounting `TableLinkProvider` in `src/index.tsx`, and a menu or route entry.
+- **Minimal diff to upstream:** add new files only. **Never edit** `src/components/main/main.tsx`, `src/contexts/data-context.tsx`, `src/hooks/use-persistence.ts` or `src/services/storage/warehouse-service.ts`. The only planned upstream edits are about two hook lines: mounting `SyncSteelProvider` in `src/index.tsx`, and a menu or route entry.
 - **Layout:**
   ```
-  src/table-link/     Forge Steel sync module (new files only)
+  src/sync-steel/     Forge Steel sync module (new files only)
   server/             backend (Node/TypeScript, Warehouse-compatible API + WebSocket); its own npm package
   obr-extension/      Owlbear companion extension; its own npm package
-  docs/table-link/    plan, report, decisions, spike results
+  docs/sync-steel/    plan, report, decisions, spike results
   ```
   `server/` and `obr-extension/` each have their own `package.json`, lockfile and `.npmrc`. **Never add their dependencies to the root `package.json`** (an upstream file).
 - **Upstream sync:** merge `upstream/main`; never rebase or force-push.
@@ -122,14 +122,14 @@ Then migrate the group with forgesteel.net's Transfer page. Merging and WebSocke
 
 **Build on Phase 0.** The `server/` stub is the starting point. Replace its in-memory store with Postgres and keep everything else:
 - the Warehouse contract and its tests: `warehouse-compat.test.ts` runs upstream's own client against the server;
-- `_tableLink.rev` on reads, revisions that are never reused, and echo detection;
+- `_syncSteel.rev` on reads, revisions that are never reused, and echo detection;
 - the JWT `sid` per `/connect`. **Store the session id with every hero revision**, so Phase 3's merge can use base = the later of the stamp and that session's last write ([finding 2](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base)).
 
 **Decisions to confirm with the user at the start** (recommendations in brackets):
 1. **HTTP layer:** keep `node:http`, or use a framework such as Hono or Fastify. [Keep `node:http` for now; the API is small.]
 2. **Postgres driver and migrations.** [`postgres` or `pg`, with plain numbered SQL migration files and a small runner.]
 3. **Token hashing.** The report says argon2. [But device tokens, refresh tokens and the GM key are long random secrets, so a SHA-256 hash is enough. The ~10-character join code is the guessable one: protect it with rate limits and rotation.] `.npmrc` sets `ignore-scripts=true`, so avoid packages that compile on install, such as `argon2`; prebuilt ones like `@node-rs/argon2` work.
-4. **Join page:** static HTML served by the backend [yes], or part of the fork's Table Link panel (Phase 2).
+4. **Join page:** static HTML served by the backend [yes], or part of the fork's Sync Steel panel (Phase 2).
 5. **Backups.** **Already decided** (22 Nov 2026): use as few extra services as possible, as long as that doesn't add much complexity. So there's no bucket, encryption key or cron service.
    - Turn on Railway's daily, weekly and monthly backups for the Postgres volume.
    - Build a GM-only export endpoint (the whole room as one compressed JSON file) and an import.
@@ -150,14 +150,14 @@ The Transfer-page check from the spike (still open) fits naturally into the migr
 
 **Suggested first prompt for the new session:**
 
-> Read `docs/table-link/SETUP.md`, starting with "Next: Phase 1", then the report sections and spike findings it lists. Use Node 26 (`nvm use 26`). Create the branch `table-link/phase-1` from `main`. Plan Phase 1 (the backend storage MVP) and confirm the open decisions with me before building.
+> Read `docs/sync-steel/SETUP.md`, starting with "Next: Phase 1", then the report sections and spike findings it lists. Use Node 26 (`nvm use 26`). Create the branch `sync-steel/phase-1` from `main`. Plan Phase 1 (the backend storage MVP) and confirm the open decisions with me before building.
 
 ## Phase 0, the spike (done)
 
 1. ✅ **Repo setup for Copilot:** add `.github/copilot-instructions.md` summarising the working rules and layout above.
-2. ✅ **First test (no accounts needed):** Vitest tests in new files under `src/table-link/` that:
+2. ✅ **First test (no accounts needed):** Vitest tests in new files under `src/sync-steel/` that:
    - compute the Owlbear summary with `HeroLogic` for sample heroes: max stamina, max recoveries, and the primary heroic resource by feature id. Include a Beastheart (Ferocity + Rampage), a Talent with negative Clarity, and a high-level hero with an epic resource;
-   - prove a top-level `_tableLink: { rev }` field survives `Utils.copy`, `HeroUpdateLogic.updateHero`, and the save path. The report's merge design (§4.4) depends on this.
+   - prove a top-level `_syncSteel: { rev }` field survives `Utils.copy`, `HeroUpdateLogic.updateHero`, and the save path. The report's merge design (§4.4) depends on this.
 
    **Result:** both confirmed in Node.
    - `HeroSummaryLogic.getSummary` gives the rules values:
@@ -165,7 +165,7 @@ The Transfer-page check from the spike (still open) fits naturally into the migr
      - Beastheart 21 / 12 (129 stamina at level 10);
      - Talent 18 / 8.
    - It picks Ferocity (`beastheart-resource`) over Rampage (`beastheart-1-4`), keeps negative Clarity, and ignores the epic Ferox (`beastheart-10-4`).
-   - `_tableLink` survives:
+   - `_syncSteel` survives:
      - `Utils.copy` and `updateHero`;
      - a Warehouse GET → load → edit → `DataManager.saveHero` PUT;
      - a local save and reload.
@@ -193,7 +193,7 @@ The Transfer-page check from the spike (still open) fits naturally into the migr
    **Result:**
    - All three checks pass, in tests and in a real browser.
    - Upstream's unmodified `WarehouseService` works against the stub, including refresh-and-retry.
-   - The real UI carries the `_tableLink` stamp. That surfaced a merge-base refinement: [finding 2](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base).
+   - The real UI carries the `_syncSteel` stamp. That surfaced a merge-base refinement: [finding 2](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base).
 5. ✅ Results are recorded in [`spike-results.md`](./spike-results.md), with raw logs in [`spike-logs/`](./spike-logs/). The spike's design refinements are marked in the report (§4.4, §4.7, §4.8 and §9):
    - the merge base also uses the session's last write;
    - a single elected writer per token, working within a write budget.

@@ -1,8 +1,8 @@
 {
-	"name": "forgesteel-table-link-server",
+	"name": "sync-steel-server",
 	"private": true,
 	"version": "0.0.1",
-	"description": "Table Link backend for the Forge Steel fork. Currently a Phase 0 stub of the Warehouse API.",
+	"description": "Sync Steel backend for the Forge Steel fork. Currently a Phase 0 stub of the Warehouse API.",
 	"license": "GPL-3.0-only",
 	"type": "module",
 	"engines": {

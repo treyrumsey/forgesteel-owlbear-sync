@@ -1,8 +1,8 @@
 {
-	"name": "forgesteel-table-link-obr",
+	"name": "sync-steel-obr-extension",
 	"private": true,
 	"version": "0.0.1",
-	"description": "Owlbear Rodeo companion extension for Table Link. Currently a Phase 0 spike tool.",
+	"description": "Owlbear Rodeo companion extension for Sync Steel. Currently a Phase 0 spike tool.",
 	"license": "GPL-3.0-only",
 	"type": "module",
 	"engines": {
