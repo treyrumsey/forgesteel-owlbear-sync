@@ -85,7 +85,9 @@ The icon is original (sync arrows around a hex nut), in `public/sync-steel/`, re
 
 ### Production reset before go-live
 
-**Decision:** wipe the api's database and snapshots before the group starts. That removes the inert Phase 1 drill room, its audit entries, and test rooms from Phase 2's deployment checks.
+**Decision:** start the group on an empty database. That leaves behind the inert Phase 1 drill room, its audit entries, and the test rooms from Phase 2's deployment checks.
+
+**How (22 Nov 2026):** the api now uses a new database file and snapshot folder (`DATABASE_PATH=/data/sync-steel-live.db`, `SNAPSHOT_DIR=/data/snapshots-live`). Deleting the old files needs `railway ssh`, which needs an SSH key on the Railway account, so they stay on the volume, unused, and switching back undoes the reset.
 
 ## Phase 1: backend storage (22 Nov 2026)
 
