@@ -45,6 +45,7 @@ This repo is a **public fork of [`andyaiken/forgesteel`](https://github.com/andy
   `server/src/main.test.ts` catches violations.
 - **Warehouse compatibility:** the server must keep the reference Warehouse's response shapes. `server/src/warehouse-compat.test.ts` runs upstream's unmodified `WarehouseService` against it.
 - **Upstream sync:** merge `upstream/main`. **Never rebase or force-push.**
+- **Branches:** one branch per phase off `main` (e.g. `table-link/phase-1`), merged back by PR **with a merge commit**.
 - **Draw Steel Tools data:**
   - Write only schema-valid values (finite numbers, valid strings; never `NaN` or `null`) to `com.draw-steel-stat-bubbles/metadata`. DST's `parseTokenData` throws on invalid data.
   - Patch only the synced fields; keep `notes`, `gmOnly` and `heroicResourceButton` untouched.

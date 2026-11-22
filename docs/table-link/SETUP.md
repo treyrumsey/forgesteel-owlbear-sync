@@ -1,6 +1,9 @@
 # Setup and handoff
 
-Everything a new session needs to start building the Forge Steel ⇄ Owlbear Rodeo sync. Read this first, then [plan.md](./plan.md) and the [research report](./forgesteel-owlbear-sync-report.md).
+Everything a new session needs to work on the Forge Steel ⇄ Owlbear Rodeo sync.
+- **Starting Phase 1?** Begin at [Next: Phase 1](#next-phase-1-the-backend-storage-mvp).
+- Background is in [plan.md](./plan.md) and the [research report](./forgesteel-owlbear-sync-report.md). The report wins where they differ.
+- Phase 0 results are in [spike-results.md](./spike-results.md).
 
 ## Current state (22 Nov 2026)
 
@@ -8,7 +11,7 @@ Everything a new session needs to start building the Forge Steel ⇄ Owlbear Rod
 |---|---|
 | Fork | [`treyrumsey/forgesteel-owlbear-sync`](https://github.com/treyrumsey/forgesteel-owlbear-sync), public, linked to `andyaiken/forgesteel` |
 | Local clone | `~/dev/forgesteel-owlbear-sync`. Remotes: `origin` (your fork) and `upstream` (`git@github.com:andyaiken/forgesteel.git`) |
-| Branch | Work happens on **`table-link/spike`** (pushed to `origin`). `main` stays at upstream `3c6b4ab` ("Dice false", 20 Nov 2026), the commit the research examined |
+| Branch | **`main`** holds Phase 0, merged from `table-link/spike` on 22 Nov 2026, on top of upstream `3c6b4ab` ("Dice false", 20 Nov 2026). Work on **one branch per phase off `main`** (next: `table-link/phase-1`) and merge back by PR **with a merge commit**; never squash or rebase |
 | Dependencies | Installed with `npm ci` on Node 26 |
 | Node | **v26.13.1 "Lithium"**, the latest stable release and the Active LTS. It's the nvm `default`. It satisfies `engines.node >= 24`. See [Node version](#node-version) |
 | nvm | v0.41.0 at `~/.nvm`, upgraded from 0.25.1 (2015), which couldn't list LTS or recent releases |
@@ -45,8 +48,9 @@ node -v                      # expect v26.x
 npm ci
 npm run check                # lint + tsc + vitest + npm audit
 
-# 3. Work on the spike branch
-git switch table-link/spike  # or: git switch -c table-link/spike
+# 3. Start from main, on a branch for the phase
+git switch main && git pull
+git switch -c table-link/phase-1
 ```
 
 If `npm audit` fails on the untouched upstream code, note it as a baseline and don't fix it in the fork. It currently does; see the table above.
@@ -99,7 +103,54 @@ To connect the fork (or forgesteel.net) to a Warehouse:
 - **Never commit secrets.** They go in Railway variables and GitHub Actions secrets.
 - **Ricky's bridge** (`RickyTan01/forgesteel-obr-bridge`) has no license: use it as reference only and don't copy its code or images.
 
-## Next steps (Phase 0, the spike, in order)
+## Next: Phase 1, the backend storage MVP
+
+**Goal** (report §11, item 1): a real backend on Railway that delivers the "lost device" goal on its own. It needs:
+- the Warehouse-compatible API;
+- rooms, seats and device tokens;
+- a join page;
+- hero revisions;
+- nightly off-site backups.
+
+Then migrate the group with forgesteel.net's Transfer page. Merging and WebSockets come later (Phase 3).
+
+**Read first:**
+- report §4.2 (rooms);
+- §4.3 (API and data model);
+- §4.4 (revisions, including the spike refinement);
+- §6 (durability), §8 (Railway) and §9 (migration);
+- [spike findings 1–2](./spike-results.md#findings).
+
+**Build on Phase 0.** The `server/` stub is the starting point. Replace its in-memory store with Postgres and keep everything else:
+- the Warehouse contract and its tests: `warehouse-compat.test.ts` runs upstream's own client against the server;
+- `_tableLink.rev` on reads, revisions that are never reused, and echo detection;
+- the JWT `sid` per `/connect`. **Store the session id with every hero revision**, so Phase 3's merge can use base = the later of the stamp and that session's last write ([finding 2](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base)).
+
+**Decisions to confirm with the user at the start** (recommendations in brackets):
+1. **HTTP layer:** keep `node:http`, or use a framework such as Hono or Fastify. [Keep `node:http` for now; the API is small.]
+2. **Postgres driver and migrations.** [`postgres` or `pg`, with plain numbered SQL migration files and a small runner.]
+3. **Token hashing.** The report says argon2. [But device tokens, refresh tokens and the GM key are long random secrets, so a SHA-256 hash is enough. The ~10-character join code is the guessable one: protect it with rate limits and rotation.] `.npmrc` sets `ignore-scripts=true`, so avoid packages that compile on install, such as `argon2`; prebuilt ones like `@node-rs/argon2` work.
+4. **Join page:** static HTML served by the backend [yes], or part of the fork's Table Link panel (Phase 2).
+5. **Backups:** a Railway cron service runs `pg_dump`, encrypts with `age`, and uploads to R2 or B2. This needs the bucket and key; see [Accounts and resources](#accounts-and-resources).
+6. **CI:** our own GitHub Actions workflow is planned for Phase 2. It could come earlier to protect `main`. See the Notes below about upstream's workflows first.
+
+**Constraints to know:**
+- **Server runtime:** `server/` runs as plain `node src/main.ts`. When the server starts importing the fork's `src/` (Phase 3–4, for `HeroLogic`), it will need a build step such as esbuild, because `src/` uses `@/` aliases, imports without extensions, and enums. Phase 1 doesn't need `src/`.
+- **Database tests:** root `vitest run` picks up `server/**/*.test.ts`. Tests that need Postgres must skip when there's no `DATABASE_URL` (`describe.skipIf`), so `npm run check` still passes without a database. Run them against a local Postgres in Docker.
+- **Installing packages:** use `npm install --prefix server …`. Without `--prefix`, npm walks up to the root `package.json`.
+
+**Before or during Phase 1, from the user:**
+- the Railway CLI (`brew install railway`);
+- an S3-compatible bucket (R2 or B2);
+- an `age` key.
+
+The Transfer-page check from the spike (still open) fits naturally into the migration test.
+
+**Suggested first prompt for the new session:**
+
+> Read `docs/table-link/SETUP.md`, starting with "Next: Phase 1", then the report sections and spike findings it lists. Use Node 26 (`nvm use 26`). Create the branch `table-link/phase-1` from `main`. Plan Phase 1 (the backend storage MVP) and confirm the open decisions with me before building.
+
+## Phase 0, the spike (done)
 
 1. ✅ **Repo setup for Copilot:** add `.github/copilot-instructions.md` summarising the working rules and layout above.
 2. ✅ **First test (no accounts needed):** Vitest tests in new files under `src/table-link/` that:
@@ -141,12 +192,14 @@ To connect the fork (or forgesteel.net) to a Warehouse:
    - All three checks pass, in tests and in a real browser.
    - Upstream's unmodified `WarehouseService` works against the stub, including refresh-and-retry.
    - The real UI carries the `_tableLink` stamp. That surfaced a merge-base refinement: [finding 2](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base).
-5. ✅ Results are recorded in [`spike-results.md`](./spike-results.md), with raw logs in [`spike-logs/`](./spike-logs/). **Next: Phase 1** (report §11), the backend storage MVP, with the spike's refinements:
+5. ✅ Results are recorded in [`spike-results.md`](./spike-results.md), with raw logs in [`spike-logs/`](./spike-logs/). The spike's design refinements are marked in the report (§4.4, §4.7, §4.8 and §9):
    - the merge base also uses the session's last write;
-   - the elected writer works within a write budget.
+   - a single elected writer per token, working within a write budget.
 
 ## Notes
 
 - The empty, unused `~/dev/forge-steel-owlbear-sync` folder (with hyphens) has been deleted.
-- **Upstream's workflows also run in the fork.** Actions are enabled, and `digitalocean.yml` builds and deploys on every push to `main`. It's harmless on `table-link/*` branches. Before anything merges to the fork's `main` (Phase 2), disable upstream's deploy and registry-cleanup workflows with `gh workflow disable`, which needs no file edits.
+- **Upstream's workflows are not active in the fork.** As of 22 Nov 2026, GitHub shows no registered workflows and no runs, even after our pushes and the merge to `main`. That's the default for forks until someone enables workflows on the Actions tab.
+  - **Before enabling Actions** (e.g. for our own CI), disable upstream's deploy and registry-cleanup workflows with `gh workflow disable`, which needs no file edits. Otherwise every push to `main` would try to deploy to upstream's DigitalOcean registry.
+  - Their `check` job would also fail on the `npm audit` baseline.
 - Research copies of the other repos (Draw Steel Tools, Ricky's bridge, the Warehouse, the Owlbear SDK) aren't kept here. Source versions and links are listed in the report's Appendix A.

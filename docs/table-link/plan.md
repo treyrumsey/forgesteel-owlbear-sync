@@ -2,7 +2,7 @@
 
 > **Status 2026‑11‑21:** research and design are complete. The full write-up is in [forgesteel-owlbear-sync-report.md](./forgesteel-owlbear-sync-report.md). Where this plan and the report differ, **the report wins**; for example, the report's §4.4 has the authoritative merge design (a revision stamp kept inside the hero JSON).
 > **Repo:** public fork [`treyrumsey/forgesteel-owlbear-sync`](https://github.com/treyrumsey/forgesteel-owlbear-sync) of `andyaiken/forgesteel`, cloned at `~/dev/forgesteel-owlbear-sync`. Setup steps and next actions are in [SETUP.md](./SETUP.md).
-> Implementation has not started. Begin with Phase 0, the spike (report §10–11).
+> Phase 0 (the spike) is done and merged to `main` (22 Nov 2026): results are in [spike-results.md](./spike-results.md). **Next: Phase 1, the backend storage MVP**; see [SETUP.md](./SETUP.md#next-phase-1-the-backend-storage-mvp).
 
 ## Problem
 A home group builds heroes in **Forge Steel** (FS, React PWA, GPL‑3) and plays on **Owlbear Rodeo** (OBR) with **Draw Steel Tools 2** (DST, GPL‑3), which tracks hero stats on tokens. Two goals:

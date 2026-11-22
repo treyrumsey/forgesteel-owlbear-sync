@@ -2,6 +2,8 @@
 
 *Prepared 21 Nov 2026 for a home Draw Steel group. Research and design only; no code has been written. Source versions examined are listed in [Appendix A](#appendix-a-sources-and-versions-examined).*
 
+> **Update (22 Nov 2026):** the Phase 0 spike is done. Its results are in [spike-results.md](./spike-results.md). Design refinements from it are marked "Spike" inline in §4.4, §4.7, §4.7.1, §4.8 and §9.
+
 ---
 
 ## 1. Executive summary
