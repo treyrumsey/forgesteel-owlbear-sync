@@ -2,7 +2,7 @@
 
 Everything a new session needs to start building the Forge Steel ⇄ Owlbear Rodeo sync. Read this first, then [plan.md](./plan.md) and the [research report](./forgesteel-owlbear-sync-report.md).
 
-## Current state (21 Nov 2026)
+## Current state (22 Nov 2026)
 
 | Item | State |
 |---|---|
@@ -17,7 +17,8 @@ Everything a new session needs to start building the Forge Steel ⇄ Owlbear Rod
 | Docker | Installed (`/usr/local/bin/docker`); useful for a local Postgres and for building the `Dockerfile` |
 | Postgres client | Not installed (optional) |
 | Railway CLI | Not installed (not needed until deployment) |
-| Code written | Phase 0 steps 1–2: [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md), `HeroSummaryLogic` in [`src/table-link/logic/`](../../src/table-link/logic/) and the `_tableLink` stamp tests ([`src/table-link/table-link-stamp.test.ts`](../../src/table-link/table-link-stamp.test.ts)). `npm run check`: 38 files and 810 tests pass; audit unchanged from the baseline |
+| Code written | Phase 0 code is done; results are in [spike-results.md](./spike-results.md).<br>• [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md).<br>• `HeroSummaryLogic` and the `_tableLink` tests in [`src/table-link/`](../../src/table-link/).<br>• The stub Warehouse in [`server/`](../../server/).<br>• The Owlbear spike extension in [`obr-extension/`](../../obr-extension/).<br>`npm run check` runs all of their tests: lint, tsc and vitest pass; the audit is unchanged from the baseline. |
+| Waiting on you | The Owlbear tests (runbook in [spike-results.md](./spike-results.md#owlbear-runbook-manual)): an Owlbear account, a test room with Draw Steel Tools, and a second account as a player |
 
 ### Node version
 
@@ -50,6 +51,25 @@ git switch table-link/spike  # or: git switch -c table-link/spike
 
 If `npm audit` fails on the untouched upstream code, note it as a baseline and don't fix it in the fork. It currently does; see the table above.
 
+## Running the pieces
+
+Run each from `~/dev/forgesteel-owlbear-sync`, after `nvm use 26`, in its own terminal.
+
+| What | Command | Address |
+|---|---|---|
+| Stub backend | `npm start --prefix server` (no install needed) | `http://localhost:8787`, device token `dev-token` |
+| The fork | `npm start` | `http://localhost:5173` |
+| Owlbear extension | `npm ci --prefix obr-extension`, then `npm run dev --prefix obr-extension` | `http://localhost:5174/manifest.json` |
+
+To connect the fork (or forgesteel.net) to a Warehouse:
+1. Settings → **Advanced** → Feature Flags: enter `Treat Curve`. This upstream flag hides the manual Warehouse settings; see [spike finding 1](./spike-results.md#1-upstream-hides-manual-warehouse-settings-behind-a-feature-flag).
+2. Settings → Connections: turn on the manual Warehouse and enter the host and token.
+
+**Checks:**
+- `npm run check` covers the fork and the `server/` and `obr-extension/` tests.
+- Lint `server/src` and `obr-extension/src` with `npx eslint server/src obr-extension/src`.
+- Type-check with `npm run typecheck --prefix server` and `npm run build --prefix obr-extension`. Both need `npm ci --prefix …` first.
+
 ## Accounts and resources
 
 | Needed for | Requirement |
@@ -69,10 +89,11 @@ If `npm audit` fails on the untouched upstream code, note it as a baseline and d
 - **Layout:**
   ```
   src/table-link/     Forge Steel sync module (new files only)
-  server/             backend (Node/TypeScript, Warehouse-compatible API + WebSocket)
-  obr-extension/      Owlbear companion extension
-  docs/table-link/    plan, report, decisions
+  server/             backend (Node/TypeScript, Warehouse-compatible API + WebSocket); its own npm package
+  obr-extension/      Owlbear companion extension; its own npm package
+  docs/table-link/    plan, report, decisions, spike results
   ```
+  `server/` and `obr-extension/` each have their own `package.json`, lockfile and `.npmrc`. **Never add their dependencies to the root `package.json`** (an upstream file).
 - **Upstream sync:** merge `upstream/main`; never rebase or force-push.
 - **Draw Steel Tools data:** write only schema-valid values to `com.draw-steel-stat-bubbles/metadata`. Patch only the synced fields, and keep `notes`, `gmOnly` and `heroicResourceButton` untouched.
 - **Never commit secrets.** They go in Railway variables and GitHub Actions secrets.
@@ -97,15 +118,24 @@ If `npm audit` fails on the untouched upstream code, note it as a baseline and d
      - a local save and reload.
 
      Mutation checks (stripping the field in `updateHero`, `WarehouseService.putHero` or `LocalService.putHero`) make the tests fail, as they should.
-3. **Owlbear test:** a minimal extension in `obr-extension/`, served by Vite on localhost and added to the test room by manifest URL. Confirm:
+3. 🟡 **Owlbear test:** a minimal extension in `obr-extension/`, served by Vite on localhost and added to the test room by manifest URL. Confirm:
    - writes to Draw Steel Tools' token data are accepted and Draw Steel Tools redraws them;
    - behaviour under each permission setting;
    - fast-repeated click and scene-switch bursts, counting lost updates.
-4. **Stub backend:** a minimal Warehouse-compatible server in `server/` that the fork's local dev server can connect to. Check:
+
+   **Status:**
+   - Built and verified outside Owlbear: build, type check, tests, and manifest CORS.
+   - The **hands-on tests in a room are waiting on you**: follow the [runbook](./spike-results.md#owlbear-runbook-manual).
+4. ✅ **Stub backend:** a minimal Warehouse-compatible server in `server/` that the fork's local dev server can connect to. Check:
    - `/healthz` returns `{"version":"1.x"}`;
    - `/connect` works through the CORS credentials preflight;
    - an expired access token returns `401 {"msg":"Token has expired"}`.
-5. Record the results in `docs/table-link/spike-results.md`, then start Phase 1 (report §11).
+
+   **Result:**
+   - All three checks pass, in tests and in a real browser.
+   - Upstream's unmodified `WarehouseService` works against the stub, including refresh-and-retry.
+   - The real UI carries the `_tableLink` stamp. That surfaced a merge-base refinement: [finding 2](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base).
+5. 🟡 Results are in [`spike-results.md`](./spike-results.md); paste the Owlbear logs there. Then start Phase 1 (report §11).
 
 ## Notes
 

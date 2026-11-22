@@ -289,6 +289,10 @@ The fix is a **revision stamp embedded in the hero JSON**:
 
 Two Forge Steel devices editing the **build** of the same hero at once fall back to last writer wins for those fields, which is acceptable for a home group.
 
+> **Spike refinement (22 Nov 2026):** `putHero` ignores the response, so in the real UI every later save in a session still carries the stamp the client **loaded**.
+> - **Merge base:** the later of the stamp and that **session's own last write** for the hero. Each `/connect` gets a session id (`sid` claim), and the server keeps the last revision each session wrote.
+> - **Evidence:** [spike-results.md](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base). The Phase 0 stub implements this.
+
 ### 4.5 WebSocket protocol (sketch)
 
 ```
@@ -498,7 +502,9 @@ Constraints:
 1. The GM deploys and creates a room, getting a join code and a GM key.
 2. **Each player, on the device that has their heroes:**
    1. Open the backend's join page, enter the code and pick a seat to get a device token.
-   2. In **forgesteel.net** (inside the installed app on iPad, if that's where the heroes are), go to Settings → Warehouse, enter the backend address and token, and test the connection.
+   2. In **forgesteel.net** (inside the installed app on iPad, if that's where the heroes are):
+      1. First turn on the Warehouse settings: Settings → Advanced → Feature Flags, enter `Treat Curve`. This was found in the spike; upstream hides the settings behind this flag.
+      2. Go to Settings → Connections, enter the backend address and token, and test the connection.
    3. Open the **Transfer** page and copy Local → Warehouse. This uploads heroes and homebrew.
 3. Each player opens the fork's address, installs it, joins with the code and picks the same seat. Their heroes load from the server.
 4. Session data isn't moved by Transfer; the GM moves it with Backup export and import.
