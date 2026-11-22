@@ -1,0 +1,51 @@
+.sync-steel-page {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+
+	.sync-steel-page-content {
+		height: 100%;
+		background-color: var(--fs-canvas);
+		padding: 30px 20px;
+		display: flex;
+		justify-content: center;
+		overflow-y: auto;
+
+		.sync-steel-column {
+			width: 100%;
+			max-width: 720px;
+			display: flex;
+			flex-direction: column;
+			gap: 30px;
+		}
+
+		.sync-steel-secret {
+			font-family: monospace;
+			font-size: 1.3em;
+			letter-spacing: 0.05em;
+		}
+
+		.sync-steel-steps {
+			margin: 0;
+			padding-left: 20px;
+
+			li {
+				margin-bottom: 8px;
+			}
+		}
+
+		.sync-steel-seat {
+			padding: 10px;
+			border: 1px solid var(--fs-border);
+			border-radius: 8px;
+		}
+
+		.sync-steel-revoked {
+			text-decoration: line-through;
+		}
+
+		.sync-steel-note {
+			font-size: 0.85em;
+		}
+	}
+}
