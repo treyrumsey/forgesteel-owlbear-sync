@@ -16,6 +16,9 @@ export const SYNC_STEEL_BRAND = {
 	]
 };
 
+// Sync Steel's stand-in for the Google tag: the same global, sending nothing
+export const GTAG_STUB = '<script>function gtag() {}</script>';
+
 const escapeAttr = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 const replaceOnce = (html: string, pattern: RegExp, replacement: string, what: string) => {
@@ -49,9 +52,11 @@ export const brandIndexHtml = (html: string) => {
 	out = setMeta(out, 'name', 'apple-mobile-web-app-title', brand.name);
 	out = replaceOnce(out, /<title>[^<]*<\/title>/, `<title>${brand.name}</title>`, 'a <title>');
 
-	// Upstream's Google Analytics would report this group's use to upstream's account
-	out = replaceOnce(out, /\s*<!-- Google tag \(gtag\.js\) -->\s*<script async src="https:\/\/www\.googletagmanager\.com\/[^"]*"><\/script>\s*<script>[\s\S]*?<\/script>/, '', 'the Google tag');
-	if (/googletagmanager|gtag\(/.test(out)) {
+	// Upstream's Google Analytics would report this group's use to upstream's account. Its code
+	// (src/utils/analytics.ts) still calls the global gtag() when heroes and homebrew are saved,
+	// so a no-op takes the tag's place: without it those saves throw "gtag is not defined".
+	out = replaceOnce(out, /<!-- Google tag \(gtag\.js\) -->\s*<script async src="https:\/\/www\.googletagmanager\.com\/[^"]*"><\/script>\s*<script>[\s\S]*?<\/script>/, GTAG_STUB, 'the Google tag');
+	if (/googletagmanager|dataLayer|gtag\('config'/.test(out)) {
 		throw new Error('Sync Steel branding: index.html still loads Google Analytics');
 	}
 	if (/content="Forge Steel[^"]*"|<title>Forge Steel/.test(out)) {
