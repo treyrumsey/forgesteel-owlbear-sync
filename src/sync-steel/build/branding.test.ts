@@ -1,4 +1,4 @@
-import { SYNC_STEEL_BRAND, brandIndexHtml, brandManifest } from '@/sync-steel/build/branding';
+import { GTAG_STUB, SYNC_STEEL_BRAND, brandIndexHtml, brandManifest } from '@/sync-steel/build/branding';
 import { describe, expect, it } from 'vitest';
 import indexHtml from '../../../index.html?raw';
 
@@ -17,8 +17,20 @@ describe('brandIndexHtml', () => {
 		expect(branded).not.toContain('forgesteel.net');
 	});
 
-	it('removes upstream\'s Google Analytics and keeps the app', () => {
-		expect(branded).not.toMatch(/googletagmanager|gtag/);
+	it('removes upstream\'s Google Analytics', () => {
+		expect(branded).not.toMatch(/googletagmanager|dataLayer|G-[A-Z0-9]+/);
+	});
+
+	// Upstream's Analytics calls the global gtag() on every hero and homebrew save
+	it('leaves a global gtag that does nothing, before the app loads', () => {
+		expect(branded).toContain(GTAG_STUB);
+		expect(branded.indexOf(GTAG_STUB)).toBeLessThan(branded.indexOf('src="/src/index.tsx"'));
+		const script = /<script>([\s\S]*?)<\/script>/.exec(GTAG_STUB)![1];
+		const gtag = new Function(`${script}; return gtag;`)() as (...args: unknown[]) => unknown;
+		expect(gtag('event', 'hero_edited', { class: 'fury' })).toBeUndefined();
+	});
+
+	it('keeps the app', () => {
 		expect(branded).toContain('<div id="root"></div>');
 		expect(branded).toContain('src="/src/index.tsx"');
 	});

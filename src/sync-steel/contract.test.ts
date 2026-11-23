@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { FactoryLogic } from '@/logic/factory-logic';
 import { HeroLogic } from '@/logic/hero-logic';
 import { Utils } from '@/utils/utils';
+import analyticsSource from '@/utils/analytics.ts?raw';
 import appFooterSource from '@/components/panels/app-footer/app-footer.tsx?raw';
 import appRoutesSource from '@/components/main/app-routes.tsx?raw';
 import { fury } from '@/data/classes/fury/fury';
@@ -55,5 +56,12 @@ describe('upstream contracts Sync Steel relies on', () => {
 		expect(appRoutesSource).toContain('import(\'@/sync-steel/components/sync-steel-page\')');
 		expect(appRoutesSource).toMatch(/<Route path='sync-steel' element={<SyncSteelPage /);
 		expect(appFooterSource).toContain('syncSteelFooterAction(isSmall),');
+	});
+
+	// The branded index.html swaps Google's tag for a no-op gtag (build/branding.ts). If upstream's
+	// analytics stops using that global, the stub may no longer cover it: check before merging.
+	it('keeps analytics on the global gtag that the branding stubs out', () => {
+		expect(analyticsSource).toContain('declare let gtag:');
+		expect(analyticsSource).not.toMatch(/window\.(gtag|dataLayer)|import .*gtag/);
 	});
 });
