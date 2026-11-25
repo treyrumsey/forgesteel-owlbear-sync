@@ -110,6 +110,7 @@ export const gmRoutes = (s: Services) => {
 		}
 		if (s.rooms.revokeDevice(device.id)) {
 			s.rooms.audit({ roomId: principal.roomId, seatId: principal.seatId, deviceId: principal.deviceId, action: 'device.revoked', detail: { deviceId: device.id, label: device.label, seat: seat.name } });
+			s.events.emit({ type: 'device.revoked', roomId: principal.roomId, deviceId: device.id });
 		}
 		return c.body(null, 204);
 	});
@@ -171,7 +172,7 @@ export const gmRoutes = (s: Services) => {
 		});
 		s.rooms.audit({ roomId: principal.roomId, seatId: principal.seatId, deviceId: principal.deviceId, action: 'hero.restored', detail: { heroId: row.id, name: data.name, fromRev: body.rev ?? row.rev, rev: result.rev } });
 		if (result.changed) {
-			s.events.emit({ type: 'hero.changed', roomId: principal.roomId, heroId: row.id, seatId: row.seat_id, rev: result.rev, sid: null, source: 'restore' });
+			s.events.emit({ type: 'hero.changed', roomId: principal.roomId, heroId: row.id, seatId: row.seat_id, rev: result.rev, sid: null, deviceId: null, merged: false, source: 'restore' });
 		}
 		return c.json({ rev: result.rev, changed: result.changed });
 	});

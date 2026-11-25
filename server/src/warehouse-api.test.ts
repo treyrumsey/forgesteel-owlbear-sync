@@ -171,7 +171,11 @@ describe('Warehouse API: data', () => {
 		expect(heroLines[0]).toContain('rev 1 -> 2 (stamp rev 1, session wrote rev 1, base rev 1)');
 		expect(heroLines[1]).toContain('rev 2 -> 3 (stamp rev 1, session wrote rev 2, base rev 2)');
 		expect(heroLines[1]).not.toContain('WARNING');
-		expect(heroLines[2]).toContain('rev 3 -> 4 (stamp rev 1, session wrote rev none, base rev 1) WARNING: stale base (current was rev 3)');
+		// A stale base is merged: both devices took damage since rev 1, so the iPad's 9 adds to the laptop's 4
+		expect(heroLines[2]).toContain('rev 3 -> 4 (stamp rev 1, session wrote rev none, base rev 1; merged)');
+		expect(heroLines[2]).not.toContain('WARNING');
+		const stored = await (await t.call('/data/forgesteel-heroes/hero-3', laptop)).json() as { data: { state: { staminaDamage: number } } };
+		expect(stored.data.state.staminaDamage).toBe(13);
 	});
 
 	it('records the session id with each revision', () => {
@@ -212,7 +216,7 @@ describe('Warehouse API: data', () => {
 		await t.putHero(token, { id: 'hero-5', name: 'Sol', state: { staminaDamage: 0 }, _syncSteel: { rev: 1 } });
 		await t.call('/data/forgesteel-heroes/hero-5', token, { method: 'DELETE' });
 
-		expect(events.map(event => [ event.type, event.heroId, event.rev ])).toEqual([ [ 'hero.changed', 'hero-5', 1 ], [ 'hero.deleted', 'hero-5', 1 ] ]);
+		expect(events.map(event => [ event.type, 'heroId' in event ? event.heroId : null, 'rev' in event ? event.rev : null ])).toEqual([ [ 'hero.changed', 'hero-5', 1 ], [ 'hero.deleted', 'hero-5', 1 ] ]);
 	});
 
 	it('rejects a hero whose id does not match the URL', async () => {

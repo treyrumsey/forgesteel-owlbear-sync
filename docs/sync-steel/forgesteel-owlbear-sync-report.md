@@ -314,6 +314,14 @@ Two Forge Steel devices editing the **build** of the same hero at once fall back
 > - **Merge base:** the later of the stamp and that **session's own last write** for the hero. Each `/connect` gets a session id (`sid` claim), and the server keeps the last revision each session wrote.
 > - **Evidence:** [spike-results.md](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base). The Phase 0 stub implements this.
 
+> **Phase 3 (23 Nov 2026):** built in `server/src/merge.ts`, wider than above.
+> - **Scope:** top-level parts are atomic except `state`, whose fields each merge, so non-synced parts merge too.
+> - **Counters combine** when both sides changed them (stamina damage, temporary stamina, recoveries used, surges, heroic resource values).
+> - **The base after a merged save** is what that session sent, not the merged revision.
+> - **Echoes** don't count as a session's save.
+>
+> Details are in [decisions](./decisions.md#the-three-way-merge).
+
 ### 4.5 WebSocket protocol (sketch)
 
 ```
@@ -330,6 +338,13 @@ server → obr     ack       { editId, rev }  |  reject { editId, reason }
 - The token goes in the first message, not the URL, so it never appears in logs.
 - On reconnect, the client sends the last revision it saw for each hero, and the server sends only the latest state of heroes that changed.
 - Notifications are coalesced per hero (§4.8).
+
+> **Phase 3 (23 Nov 2026):** the Forge Steel side is built (`server/src/hub.ts`), with changes:
+> - **Sign-in:** the first message carries the **device token**, not a JWT.
+> - **Heroes are pushed whole** (`hero`) instead of `hero.changed` plus a GET.
+> - **Own saves:** a device's own unmerged save comes back as `hero.own { heroId, rev }`.
+>
+> The protocol is in [server/README.md](../../server/README.md#api); see also [decisions](./decisions.md#the-hub-pushes-the-whole-hero).
 
 ### 4.6 Forge Steel fork: the Sync Steel module (`src/sync-steel/`)
 
@@ -544,6 +559,12 @@ No separate backup service is needed (§6).
 - Cap request size: heroes at a few MB, homebrew higher.
 - Close idle WebSockets.
 
+> **Phase 3 (23 Nov 2026):**
+> - **Railway's networking docs** exempt WebSockets from the idle and duration limits: they "can stay open indefinitely, even while idle".
+> - **Dead sockets:** the hub drops any that miss a 30 s ping.
+> - **Limits:** 4 sockets per device and 60 per room; 1 KB messages after hello.
+> - **Failed device tokens** count against the `/connect` failure limit.
+
 ---
 
 ## 9. Migration, costs, licensing and branding
@@ -605,6 +626,7 @@ No time estimates; each phase leaves something usable.
    - Sync Steel room panel.
    - **Done 22 Nov 2026:** `fs-web` at https://syncsteel.app with build-time branding, a Sync Steel page (join, create a room, GM tools), the daily upstream-merge workflow and contract tests. See [decisions](./decisions.md#phase-2-the-fork-goes-live-22-nov-2026).
 3. **Live Forge Steel side:** the WebSocket hub, `SyncSteelProvider`, the revision stamp and three-way merge.
+   - **Done 23 Nov 2026,** with changes: the hub pushes whole heroes, the merge covers top-level parts and every `state` field, and counters combine. See [decisions](./decisions.md#phase-3-live-sync-23-nov-2026).
 4. **Owlbear, Forge Steel → token:** room binding, linking, summaries, elected writer, pacing, Draw Steel Tools writes, condition badges.
 5. **Owlbear, token → Forge Steel:** edit forwarding, patches, the Party Continuity stale-restore guard, condition editing.
 6. **Hardening:** rate limits, audit log views, a restore drill, monitoring, short how-to docs for the group.

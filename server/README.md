@@ -4,13 +4,12 @@ The backend for the Sync Steel fork (report §4.3–4.5, decisions in [decisions
 - a Forge Steel Warehouse-compatible API;
 - rooms, seats and revocable device tokens;
 - hero revisions;
-- GM tools: restore, audit, export and import, and daily snapshots.
-
-Phase 3 adds the WebSocket hub.
+- GM tools: restore, audit, export and import, and daily snapshots;
+- live sync (Phase 3): the three-way hero merge and the WebSocket hub at `GET /live`.
 
 **Stack:**
 - Node 26 runs the TypeScript directly; there's no build step.
-- [Hono](https://hono.dev) on `@hono/node-server` handles HTTP.
+- [Hono](https://hono.dev) on `@hono/node-server` handles HTTP, and its WebSocket support (with [`ws`](https://github.com/websockets/ws)) the live hub.
 - Storage is SQLite through the built-in `node:sqlite`, in one database file.
 
 ## Run locally
@@ -72,9 +71,28 @@ Behaviour details:
 - **Stamped reads:** every full hero read carries `_syncSteel: { rev }`.
 - **Monotonic revisions:** a hero id's revision numbers are never reused, even after a delete.
 - **Echo detection:** a PUT that changes nothing keeps the revision.
+- **Three-way merge** (`src/merge.ts`): a device's save merges against its base, so a stale or concurrent copy can't undo another device's change. Rules are in [decisions.md](../docs/sync-steel/decisions.md#the-three-way-merge).
+  - **Base:** the copy's stamp, or this session's own last save if newer ([finding 2](../docs/sync-steel/spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base)). After a merged save, the session's base is what it sent.
+  - **Logging:** each save logs its stamp, session and base revisions, and whether it was merged.
 - **Revision records:** each revision stores the session id (`sid`), device, seat and source.
-- **Merge-base logging:** each save logs the base Phase 3's merge will use, which is the later of the stamp and the session's last write ([finding 2](../docs/sync-steel/spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base)).
-- **Events:** each committed change emits a `hero.changed` or `hero.deleted` event (`src/events.ts`) for Phase 3's hub.
+- **Idempotent delete:** deleting a hero that's already deleted (and was visible to the caller) returns `204`, so a device can apply a delete made elsewhere through Forge Steel's own `deleteHero`.
+- **Events:** each committed change emits `hero.changed` or `hero.deleted`, and a GM disconnecting a device emits `device.revoked` (`src/events.ts`). The live hub listens to them.
+
+**Live sync** (`GET /live`, a WebSocket; `src/hub.ts`):
+
+| Message | Notes |
+|---|---|
+| → `{ type: "hello", token, heroes: { [id]: rev } }` | The device token, in the first message (never the URL), and the revisions the device has. Within 10 s, or the socket closes (4000) |
+| ← `{ type: "welcome", serverTime, seat }` | Then everything the device is missing: heroes at another revision, and `hero.deleted` for any it can no longer see |
+| ← `{ type: "hero", hero }` | A stamped hero to apply. Changes are coalesced per hero (250 ms trailing, 1 s maximum) |
+| ← `{ type: "hero.own", heroId, rev }` | This device's own save, stored as sent: only the revision |
+| ← `{ type: "hero.deleted", heroId }` | |
+| → `{ type: "ping" }` / ← `{ type: "pong" }` | The app checks the socket when it comes back to the foreground |
+
+- **Visibility:** the same as the Warehouse API: players get their seat's heroes; the GM gets the room's.
+- **Origin:** the upgrade must come from one of `CORS_ORIGINS` (`403` otherwise).
+- **Close codes:** `4001` for a bad or revoked device token (also sent at once when the GM disconnects the device), `4008` when a device opens more than 4 sockets (the oldest closes) or a room passes 60, `4029` after too many failed tokens, `1009` for a message over 1 KB after hello.
+- **Heartbeat:** a protocol ping every 30 s; a socket that misses one is dropped.
 
 **Rooms** (no device token needed; rate-limited per IP):
 

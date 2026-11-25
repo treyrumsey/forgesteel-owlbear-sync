@@ -2,6 +2,74 @@
 
 Decisions that change or refine the [research report](./forgesteel-owlbear-sync-report.md), newest first. Each says what was decided, why, and what it replaced. Setup and current state are in [SETUP.md](./SETUP.md).
 
+## Phase 3: live sync (23 Nov 2026)
+
+All confirmed with the user before building, except the counter rule and the session base, which came out of the live test and were confirmed then. Built on branch `sync-steel/phase-3`.
+
+### The `ws` package in `server/`
+
+**Decision:** add [`ws`](https://github.com/websockets/ws) to `server/package.json` (with `@types/ws` for development). It's pure JS with no dependencies of its own.
+
+**Why:** `@hono/node-server` 2.x's `upgradeWebSocket` needs a WebSocket server object to hand the upgrade to, which is `ws` in practice (its own tests use it). Node 26 has a WebSocket client but no server. This corrects the Phase 1 note below that Phase 3 would need no extra package.
+
+### Railway keeps idle WebSockets open
+
+**Finding (Railway's networking docs, 23 Nov 2026):** WebSocket connections are exempt from the 60-second idle and 15-minute request limits, and "can stay open indefinitely, even while idle". The api already has sleeping off (report §8).
+
+**Still:** the hub pings every 30 s and drops sockets that don't answer. That finds an iPad's socket that died in the background without closing.
+
+### The hub pushes the whole hero
+
+**Decision:** the provider opens `GET /live` on the api, sends its **device token in the first message** (never the URL, so it stays out of logs), and the hub pushes each changed hero **whole and stamped** (about 100 KB). It replaces the report's `hero.changed { heroId, rev }` followed by a GET (§4.5).
+
+**Why:** the provider then needs no JWTs, no refresh and no second auth path, and catching up on reconnect is the same message. The hub checks the token exactly as `/connect` does, including revocation and the failure limit.
+
+**Details** (protocol in [server/README.md](../../server/README.md#api)):
+- **Own saves:** a device's own save, stored as sent, comes back as `hero.own { heroId, rev }` only. Re-applying it could overwrite what the player typed since. A merged save comes back whole, to correct the device's screen.
+- **Coalescing:** per hero, 250 ms trailing with a 1 s maximum, sending the latest revision; a revision already pushed isn't pushed again.
+- **Catch-up:** `hello` lists the revisions the device has. The hub sends what differs, and `hero.deleted` for heroes it can no longer see.
+- **Revocation:** disconnecting a device in the GM tools closes its sockets at once (4001), and the provider stops retrying.
+- **Origin:** the upgrade must come from one of `CORS_ORIGINS`, since CORS doesn't apply to WebSockets.
+
+### The three-way merge
+
+**Decision** (`server/src/merge.ts`, replacing last writer wins). A device's save is merged against its base:
+- **A part the saving device didn't change** keeps the server's current value.
+- **A part it did change** takes its value. If the server changed it too, the save wins, and the log names the field.
+- **Top-level parts are atomic** (`class`, `ancestry`, `features`, …), **except `state`**, whose fields merge one by one (`notes`, `inventory` as a whole, …).
+- **`state.conditions`** merges as a set by condition id. Additions from either side are kept; a removal stands unless the other side changed that condition.
+- **Heroic resource values** merge by feature id, wherever the feature is, so a remote change survives a save that changed something else in `class`.
+- **Counters combine** when both sides changed them: `staminaDamage`, `staminaTemp`, `recoveriesUsed`, `surges` and heroic resource values become the server's value plus the save's change from its base.
+- **Imports and restores** replace the hero, as before.
+
+**Why counters combine** (found in the live test): Forge Steel takes damage from temporary stamina first. A GM adding 4 temporary stamina while a player took 1 damage from an open Vitals panel lost the GM's +4 under last writer wins. Combined, it's +3.
+
+**Why this scope** (rather than the report's synced fields only): the GM editing a hero's notes or inventory while a player tracks stamina keeps both.
+
+### The merge base
+
+The base is what the saving copy started from:
+- **The stamp** it carries, the revision it was loaded or pushed at.
+- **This session's own last save,** if newer (spike [finding 2](./spike-results.md#2-the-stamp-alone-is-not-a-safe-merge-base)).
+- **After a merged save,** the session's copy is what it **sent**, not the merged revision. An open drawer such as Vitals keeps saving from that copy. The server stores what was sent (migration `002-session-base.sql`) and uses it as that session's base. Without that, a second save from the same drawer counted its first change twice.
+- **An unchanged save (an echo)** doesn't count as the session's save. The provider's re-save of a pushed hero is an echo, and counting it would make the session's older copies merge against the newer revision and undo the remote change.
+
+### `SyncSteelProvider` and the `src/index.tsx` hook
+
+**Decision:** `src/sync-steel/live/sync-steel-provider.tsx` wraps `<Main>` inside `DataManagerProvider`, the third and last planned upstream hook. It's an import plus a wrapper, which re-indents `<Main>`'s three lines. `contract.test.ts` checks that it's there and inside `DataManagerProvider`.
+
+**What it does:**
+- **When:** only while this browser is connected to the Sync Steel api (`SyncSteelConnection.isConnected`).
+- **Applying a pushed hero:** through `dataManager.saveHero()`, so every page reading `useHeroes()` re-renders. Heroes that arrive together are applied together. The resulting PUT is an echo, which the server treats as a no-op.
+- **Applying a delete:** through `dataManager.deleteHero()`. The api's hero DELETE is now idempotent, because upstream only updates the screen once the DELETE succeeds.
+- **Reconnecting:** with backoff (1 s, doubling to 30 s, with jitter). On `visibilitychange`, `online` and `pageshow`, it reconnects at once if the socket is gone, or pings it and reconnects if there's no answer within 5 s.
+- **Status:** the footer's Sync Steel button shows a dot, green when live and grey otherwise, drawn by `sync-steel-status.tsx` in our own footer action, with no upstream change.
+
+**Known limits:**
+- **Open panels keep their copy.** Upstream's drawers (Vitals and the like) and the hero editor copy the hero when they open, so they show remote changes only when reopened. Saves from them merge correctly.
+- **Two tabs in one browser** share a device, so a save in one reaches the other only on its next reload or reconnect.
+- **A brief flicker** is possible when a remote change lands during the 400 ms save debounce; the merged revision follows within a second.
+
 ## Phase 2: the fork goes live (22 Nov 2026)
 
 All confirmed with the user before building. Built on branch `sync-steel/phase-2`.
@@ -35,7 +103,7 @@ The icon is original (sync arrows around a hex nut), in `public/sync-steel/`, re
 
 ### The Sync Steel page: its own route and a footer button
 
-**Decision:** a `/sync-steel` route in `app-routes.tsx` and a **Sync Steel** button in the footer's actions (`app-footer.tsx`): two lines each, and the only upstream edits so far. `src/index.tsx` stays untouched until Phase 3's provider. `contract.test.ts` fails if a merge drops either hook.
+**Decision:** a `/sync-steel` route in `app-routes.tsx` and a **Sync Steel** button in the footer's actions (`app-footer.tsx`): two lines each, and the only upstream edits so far. `src/index.tsx` stayed untouched until Phase 3's provider. `contract.test.ts` fails if a merge drops either hook.
 
 **What the page does:**
 - **Join:** enter the code, then pick a seat or create one. The GM seat also asks for the GM key, and a GM's extra device can join with the GM key alone.
@@ -140,7 +208,7 @@ The project was called "Table Link". It's now **Sync Steel**:
 
 ### HTTP layer: Hono
 
-**Decision:** Hono on `@hono/node-server`, both pure JS. `@hono/node-server` 2.x has WebSocket support built in, so Phase 3 needs no extra package.
+**Decision:** Hono on `@hono/node-server`, both pure JS. `@hono/node-server` 2.x has WebSocket support built in. (Phase 3 found it needs the `ws` package as its server; see [above](#the-ws-package-in-server).)
 
 **Consequence:** `server/` now has runtime dependencies. Server tests run under the root Vitest, so run `npm ci --prefix server` before `npm run check`; CI does this.
 

@@ -30,7 +30,7 @@ const db = openDatabase(config.databasePath);
 const applied = migrate(db);
 writeLine(`Database ${config.databasePath}${applied.length > 0 ? `; applied ${applied.join(', ')}` : ''}`);
 
-const { app, services } = createApp({
+const { app, services, hub } = createApp({
 	db: db,
 	corsOrigins: config.corsOrigins,
 	secrets: { jwt: config.jwtSecret, jwtRefresh: config.jwtRefreshSecret, tokenHash: config.tokenHashKey },
@@ -58,6 +58,7 @@ writeLine(`CORS origins: ${config.corsOrigins.join(', ')}`);
 
 const shutdown = () => {
 	stopSnapshots();
+	hub.close();
 	server.close(() => {
 		db.close();
 		process.exit(0);

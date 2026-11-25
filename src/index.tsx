@@ -5,6 +5,7 @@ import { ErrorBoundary } from '@/components/controls/error-boundary/error-bounda
 import { HashRouter } from 'react-router';
 import { Main } from '@/components/main/main.tsx';
 import { StrictMode } from 'react';
+import { SyncSteelProvider } from '@/sync-steel/live/sync-steel-provider';
 import { createRoot } from 'react-dom/client';
 import { initializeTheme } from '@/utils/theme';
 import { registerSW } from 'virtual:pwa-register';
@@ -49,10 +50,12 @@ root.render(
 												initialBuiltInSourcebooks={data.builtInSourcebooks}
 												initialHiddenSourcebookIDs={data.hiddenSourcebookIDs}
 											>
-												<Main
-													connectionSettings={data.connectionSettings}
-													dataService={data.service}
-												/>
+												<SyncSteelProvider connectionSettings={data.connectionSettings}>
+													<Main
+														connectionSettings={data.connectionSettings}
+														dataService={data.service}
+													/>
+												</SyncSteelProvider>
 											</DataManagerProvider>
 										</HashRouter>
 									</AppTheme>

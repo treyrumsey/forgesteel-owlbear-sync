@@ -21,10 +21,12 @@ export const stampHero = (data: JsonObject, rev: number) => ({ ...data, _syncSte
 const describeSave = (id: string, data: JsonObject, result: SaveHeroResult) => {
 	const label = `hero ${id} "${typeof data.name === 'string' ? data.name : ''}"`;
 	const bases = `stamp rev ${result.stampRev ?? 'none'}, session wrote rev ${result.sessionRev ?? 'none'}, base rev ${result.baseRev ?? 'none'}`;
+	const notes = [ result.merged ? 'merged' : null, result.conflicts.length > 0 ? `this save won ${result.conflicts.join(', ')}` : null ].filter(note => note !== null);
+	const merge = notes.length > 0 ? `; ${notes.join('; ')}` : '';
 	if (!result.changed) {
-		return `  ${label} unchanged at rev ${result.rev} (${bases})`;
+		return `  ${label} unchanged at rev ${result.rev} (${bases}${merge})`;
 	}
-	return `  ${label} rev ${result.previousRev} -> ${result.rev} (${bases})${result.warning ? ` WARNING: ${result.warning}` : ''}`;
+	return `  ${label} rev ${result.previousRev} -> ${result.rev} (${bases}${merge})${result.warning ? ` WARNING: ${result.warning}` : ''}`;
 };
 
 export const warehouseRoutes = (s: Services) => {
@@ -92,15 +94,25 @@ export const warehouseRoutes = (s: Services) => {
 		});
 		s.log(describeSave(id, data, result));
 		if (result.changed) {
-			s.events.emit({ type: 'hero.changed', roomId: principal.roomId, heroId: id, seatId: ownerSeatId, rev: result.rev, sid: principal.sid, source: 'device' });
+			s.events.emit({ type: 'hero.changed', roomId: principal.roomId, heroId: id, seatId: ownerSeatId, rev: result.rev, sid: principal.sid, deviceId: principal.deviceId, merged: result.merged, source: 'device' });
 		}
 		return c.body(null, 204);
 	});
 
 	app.delete('/data/forgesteel-heroes/:id', device, c => {
 		const principal = c.get('principal');
-		const row = findVisibleHero(principal, c.req.param('id'));
-		if (!row || !s.heroes.softDelete(principal.roomId, row.id)) {
+		const id = c.req.param('id');
+		const row = findVisibleHero(principal, id);
+		if (!row) {
+			// Already deleted, for example on another device: Sync Steel's live sync then removes it here
+			// through Forge Steel's own deleteHero, which only updates the screen once the DELETE succeeds
+			const gone = s.heroes.get(principal.roomId, id);
+			if (gone && (gone.deleted_at !== null) && (principal.isGm || (gone.seat_id === principal.seatId))) {
+				return c.body(null, 204);
+			}
+			throw fail(404, 'Not found');
+		}
+		if (!s.heroes.softDelete(principal.roomId, row.id)) {
 			throw fail(404, 'Not found');
 		}
 		const name = (JSON.parse(row.data) as JsonObject).name;

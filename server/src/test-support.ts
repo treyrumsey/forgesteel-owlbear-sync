@@ -11,7 +11,7 @@ export const startTestServer = async (options: Partial<AppOptions> = {}) => {
 	migrate(db);
 	const clock = { now: Date.parse('2026-11-22T12:00:00Z') };
 	const logLines: string[] = [];
-	const { app, services } = createApp({
+	const { app, services, hub } = createApp({
 		db: db,
 		corsOrigins: [ TEST_ORIGIN ],
 		secrets: { jwt: 'test-jwt-secret', jwtRefresh: 'test-refresh-secret', tokenHash: 'test-token-hash-key' },
@@ -68,6 +68,7 @@ export const startTestServer = async (options: Partial<AppOptions> = {}) => {
 		clock: clock,
 		logLines: logLines,
 		services: services,
+		hub: hub,
 		server: server,
 		call: call,
 		post: post,
@@ -76,6 +77,7 @@ export const startTestServer = async (options: Partial<AppOptions> = {}) => {
 		connect: connect,
 		putHero: putHero,
 		close: () => new Promise<void>(resolve => {
+			hub.close();
 			server.close(() => {
 				db.close();
 				resolve();

@@ -15,10 +15,12 @@
 	},
 	"devDependencies": {
 		"@types/node": "^26.6.6",
+		"@types/ws": "^8.18.2",
 		"typescript": "^7.0.2"
 	},
 	"dependencies": {
 		"@hono/node-server": "^2.1.8",
-		"hono": "^4.13.18"
+		"hono": "^4.13.18",
+		"ws": "^8.23.0"
 	}
 }
