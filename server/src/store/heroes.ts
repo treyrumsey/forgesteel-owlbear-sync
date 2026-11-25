@@ -1,6 +1,7 @@
 import { type JsonObject, hashOf } from '../json.ts';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import type { DatabaseSync } from 'node:sqlite';
+import { mergeHero } from '../merge.ts';
 import { transaction } from '../db/database.ts';
 
 export type RevisionSource = 'device' | 'import' | 'restore';
@@ -51,8 +52,12 @@ export interface SaveHeroResult {
 	previousRev: number;
 	stampRev: number | null;
 	sessionRev: number | null;
-	// What Phase 3's three-way merge will use: the later of the stamp and the session's own last write
+	// The merge base: the later of the stamp and the session's own last write
 	baseRev: number | null;
+	// The stored hero differs from what the client sent, because the merge kept other devices' changes
+	merged: boolean;
+	// Parts both this save and another device changed; this save won them
+	conflicts: string[];
 	warning: string | null;
 }
 
@@ -98,10 +103,10 @@ export const createHeroStore = (db: DatabaseSync, now: () => number, retention: 
 					WHERE d.room_id = r.room_id AND d.hero_id = r.hero_id AND substr(d.created_at, 1, 10) = substr(r.created_at, 1, 10)
 				)
 			)`),
-		getSessionWrite: db.prepare('SELECT rev FROM hero_session_writes WHERE room_id = ? AND hero_id = ? AND sid = ?'),
+		getSessionWrite: db.prepare('SELECT rev, data FROM hero_session_writes WHERE room_id = ? AND hero_id = ? AND sid = ?'),
 		putSessionWrite: db.prepare(`
-			INSERT INTO hero_session_writes (room_id, hero_id, sid, rev, updated_at) VALUES (?, ?, ?, ?, ?)
-			ON CONFLICT (room_id, hero_id, sid) DO UPDATE SET rev = excluded.rev, updated_at = excluded.updated_at`),
+			INSERT INTO hero_session_writes (room_id, hero_id, sid, rev, data, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+			ON CONFLICT (room_id, hero_id, sid) DO UPDATE SET rev = excluded.rev, data = excluded.data, updated_at = excluded.updated_at`),
 		pruneSessionWrites: db.prepare('DELETE FROM hero_session_writes WHERE room_id = ? AND hero_id = ? AND updated_at < ?'),
 		clearSessionWrites: db.prepare('DELETE FROM hero_session_writes WHERE room_id = ? AND hero_id = ?')
 	};
@@ -127,34 +132,65 @@ export const createHeroStore = (db: DatabaseSync, now: () => number, retention: 
 		return null;
 	};
 
-	// Phase 1 is last writer wins. Phase 3 adds the three-way merge against baseRev (report §4.4).
+	const getRevisionData = (roomId: string, heroId: string, rev: number) => {
+		const row = sql.getRevision.get(roomId, heroId, rev) as { data: Uint8Array } | undefined;
+		return row ? JSON.parse(gunzipSync(row.data).toString('utf8')) as JsonObject : undefined;
+	};
+
+	const unzip = (data: Uint8Array) => JSON.parse(gunzipSync(data).toString('utf8')) as JsonObject;
+
+	// A device's save is merged three ways against its base (report §4.4, merge.ts). Imports and restores
+	// replace the hero, and so does a device save with no usable base, which is logged as a warning.
+	//
+	// The base is what the saving copy started from. Forge Steel ignores the response to a save, so a copy
+	// carries the stamp it was loaded with; if this session has saved since, its copy starts from that save
+	// instead (spike finding 2). When that save was merged, the session's copy is what it sent, not the
+	// merged revision, so the server keeps what it sent as its base.
 	const save = (input: SaveHeroInput): SaveHeroResult => transaction(db, () => {
 		const nowMs = now();
 		const timestamp = iso(nowMs);
 		const { roomId, id, writer } = input;
 		const existing = get(roomId, id);
 		const live = (existing && (existing.deleted_at === null)) ? existing : undefined;
-		const sessionRow = writer.sid ? sql.getSessionWrite.get(roomId, id, writer.sid) as { rev: number } | undefined : undefined;
+		const sessionRow = writer.sid ? sql.getSessionWrite.get(roomId, id, writer.sid) as { rev: number, data: Uint8Array | null } | undefined : undefined;
 		const sessionRev = sessionRow ? sessionRow.rev : null;
-		const candidates = [ input.stampRev, sessionRev ].filter(rev => rev !== null);
-		const baseRev = candidates.length > 0 ? Math.max(...candidates) : null;
-		const hash = hashOf(input.data);
+		const fromSession = (sessionRow !== undefined) && ((input.stampRev === null) || (sessionRow.rev > input.stampRev));
+		const baseRev = fromSession ? sessionRev : input.stampRev;
 		const bases = { stampRev: input.stampRev, sessionRev: sessionRev, baseRev: baseRev };
 
-		if (live && (live.hash === hash)) {
-			if (writer.sid) {
-				sql.putSessionWrite.run(roomId, id, writer.sid, live.rev, timestamp);
+		let data = input.data;
+		let conflicts: string[] = [];
+		let warning = writer.source === 'device' ? describeBase(live, existing, baseRev) : null;
+		const sent = fromSession && sessionRow.data ? sessionRow.data : null;
+		const needsMerge = (writer.source === 'device') && live && (baseRev !== null) && (baseRev >= live.created_rev) && ((baseRev < live.rev) || (sent !== null));
+		if (needsMerge) {
+			const base = sent ? unzip(sent) : getRevisionData(roomId, id, baseRev);
+			if (base) {
+				const result = mergeHero(base, JSON.parse(live.data) as JsonObject, input.data);
+				data = result.merged;
+				conflicts = result.conflicts;
+				warning = null;
+			} else {
+				warning = `base rev ${baseRev} is no longer kept, so this save replaced rev ${live.rev}`;
 			}
-			return { changed: false, rev: live.rev, previousRev: live.rev, ...bases, warning: null };
+		}
+		const hash = hashOf(data);
+		const merged = hash !== hashOf(input.data);
+
+		// Unchanged, such as a device re-saving a hero it was just sent. This doesn't count as the session's
+		// write: the session's other copies may be older, and must still merge against what they were based on.
+		if (live && (live.hash === hash)) {
+			return { changed: false, rev: live.rev, previousRev: live.rev, ...bases, merged: merged, conflicts: conflicts, warning: null };
 		}
 
 		const rev = (existing ? existing.rev : 0) + 1;
 		const createdRev = live ? live.created_rev : rev;
-		const json = JSON.stringify(input.data);
+		const json = JSON.stringify(data);
 		sql.upsert.run(roomId, id, input.ownerSeatId, json, hash, rev, createdRev, timestamp);
 		sql.insertRevision.run(roomId, id, rev, gzipSync(json), hash, writer.source, writer.seatId, writer.deviceId, writer.sid, timestamp);
+		// After a merge, the session's copy is what it sent (an open drawer keeps saving from it), not this revision
 		if (writer.sid) {
-			sql.putSessionWrite.run(roomId, id, writer.sid, rev, timestamp);
+			sql.putSessionWrite.run(roomId, id, writer.sid, rev, merged ? gzipSync(JSON.stringify(input.data)) : null, timestamp);
 		}
 
 		sql.pruneRevisions.run({
@@ -166,14 +202,8 @@ export const createHeroStore = (db: DatabaseSync, now: () => number, retention: 
 		});
 		sql.pruneSessionWrites.run(roomId, id, iso(nowMs - (retention.sessionDays * DAY_MS)));
 
-		const warning = writer.source === 'device' ? describeBase(live, existing, baseRev) : null;
-		return { changed: true, rev: rev, previousRev: live ? live.rev : 0, ...bases, warning: warning };
+		return { changed: true, rev: rev, previousRev: live ? live.rev : 0, ...bases, merged: merged, conflicts: conflicts, warning: warning };
 	});
-
-	const getRevisionData = (roomId: string, heroId: string, rev: number) => {
-		const row = sql.getRevision.get(roomId, heroId, rev) as { data: Uint8Array } | undefined;
-		return row ? JSON.parse(gunzipSync(row.data).toString('utf8')) as JsonObject : undefined;
-	};
 
 	return {
 		get: get,

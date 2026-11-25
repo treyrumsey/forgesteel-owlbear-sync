@@ -7,6 +7,7 @@ import analyticsSource from '@/utils/analytics.ts?raw';
 import appFooterSource from '@/components/panels/app-footer/app-footer.tsx?raw';
 import appRoutesSource from '@/components/main/app-routes.tsx?raw';
 import { fury } from '@/data/classes/fury/fury';
+import indexSource from '@/index.tsx?raw';
 
 // Contract tests (report §7): what Sync Steel relies on in upstream's code. The daily upstream merge
 // runs these in CI, so an upstream change that breaks one stops the merge before it reaches players.
@@ -51,11 +52,20 @@ describe('upstream contracts Sync Steel relies on', () => {
 		].sort());
 	});
 
-	// The only two upstream files Sync Steel edits: a merge mustn't silently drop the hooks
+	// The only upstream files Sync Steel edits: a merge mustn't silently drop the hooks
 	it('keeps the Sync Steel route and footer button', () => {
 		expect(appRoutesSource).toContain('import(\'@/sync-steel/components/sync-steel-page\')');
 		expect(appRoutesSource).toMatch(/<Route path='sync-steel' element={<SyncSteelPage /);
 		expect(appFooterSource).toContain('syncSteelFooterAction(isSmall),');
+	});
+
+	// Live sync needs the data manager, so the provider must sit inside DataManagerProvider
+	it('keeps the live-sync provider mounted inside DataManagerProvider', () => {
+		expect(indexSource).toContain('import { SyncSteelProvider } from \'@/sync-steel/live/sync-steel-provider\';');
+		const provider = indexSource.indexOf('<SyncSteelProvider connectionSettings={data.connectionSettings}>');
+		expect(provider).toBeGreaterThan(indexSource.indexOf('<DataManagerProvider'));
+		expect(provider).toBeLessThan(indexSource.indexOf('<Main'));
+		expect(indexSource.indexOf('</SyncSteelProvider>')).toBeLessThan(indexSource.indexOf('</DataManagerProvider>'));
 	});
 
 	// The branded index.html swaps Google's tag for a no-op gtag (build/branding.ts). If upstream's

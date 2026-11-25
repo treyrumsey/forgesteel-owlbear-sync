@@ -18,6 +18,14 @@ You need the room's **join code** from the GM (it looks like `ABCDE-12345`).
 
 Sync Steel needs the internet: your heroes live on the server, not on the device.
 
+## Live updates
+
+While you're connected to the room, a change saved on one device shows up on the others within a second or so, without reloading. That includes the GM's changes to your hero, and yours on the GM's screen.
+
+- **The dot on the Sync Steel button** shows the connection: **green** when live, **grey** while it reconnects. An iPad or phone reconnects by itself when you come back to the app.
+- **Two people changing the same hero at once is fine.** Changes to different things are both kept. Stamina, temporary stamina, recoveries, surges and heroic resources add up, so damage you take while the GM adds temporary stamina counts both. For anything else changed in both places at once, the later save wins.
+- **An open panel doesn't refresh.** A panel such as **Vitals**, or the hero editor, keeps the values it opened with. Changes you make there still save correctly. To see other devices' changes, close it and open it again.
+
 ## Players: a new or lost device
 
 - **New device:** open https://syncsteel.app → **Sync Steel** → join with the code → pick **your own seat**. Your heroes load.

@@ -40,13 +40,13 @@ This repo is a **public fork of [`andyaiken/forgesteel`](https://github.com/andy
   - The only upstream edits are hook lines, guarded by `src/sync-steel/contract.test.ts`:
     - the `/sync-steel` route in `src/components/main/app-routes.tsx`;
     - the Sync Steel button in `src/components/panels/app-footer/app-footer.tsx`;
-    - (Phase 3) mounting `SyncSteelProvider` in `src/index.tsx`.
+    - `SyncSteelProvider` wrapping `<Main>` inside `DataManagerProvider` in `src/index.tsx` (live sync).
   - Branding is applied at build time by `vite.sync-steel.config.ts` (`src/sync-steel/build/branding.ts`); never edit `index.html`, `vite.config.ts` or upstream's `public/` files for it. New files under `public/sync-steel/` are fine.
   - Don't change upstream models (e.g. `Hero`). Extend them with local types in our own files.
 - **Layout:**
   ```
   src/sync-steel/     Forge Steel sync module (new files only)
-  server/             backend (Hono + node:sqlite: Warehouse-compatible API, rooms, revisions; WebSocket in Phase 3)
+  server/             backend (Hono + node:sqlite: Warehouse-compatible API, rooms, revisions, three-way merge, live WebSocket hub)
   obr-extension/      Owlbear companion extension
   docs/sync-steel/    plan, report, decisions, spike results, how-to, railway
   ```

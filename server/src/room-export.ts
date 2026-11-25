@@ -216,7 +216,7 @@ export const importRoom = (s: Services, principal: Principal, payload: RoomExpor
 
 	if (!dryRun) {
 		const summary = transaction(s.db, run);
-		changedHeroes.forEach(hero => s.events.emit({ type: 'hero.changed', roomId: roomId, ...hero, sid: null, source: 'import' }));
+		changedHeroes.forEach(hero => s.events.emit({ type: 'hero.changed', roomId: roomId, ...hero, sid: null, deviceId: null, merged: false, source: 'import' }));
 		return summary;
 	}
 

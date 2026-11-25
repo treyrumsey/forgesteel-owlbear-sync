@@ -1,13 +1,15 @@
 import { type AppEnv, type ServiceOptions, createServices } from './services.ts';
+import { HttpError, clientIp } from './http.ts';
+import { type HubOptions, MAX_HELLO_BYTES, createHub } from './hub.ts';
+import { serve, upgradeWebSocket } from '@hono/node-server';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { HTTPException } from 'hono/http-exception';
 import { Hono } from 'hono';
-import { HttpError } from './http.ts';
 import type { Server } from 'node:http';
+import { WebSocketServer } from 'ws';
 import { authRoutes } from './routes/auth.ts';
 import { gmRoutes } from './routes/gm.ts';
 import { roomRoutes } from './routes/rooms.ts';
-import { serve } from '@hono/node-server';
 import { warehouseRoutes } from './routes/warehouse.ts';
 
 // Forge Steel adds X-NO-RETRY when it retries a request after refreshing an expired token
@@ -16,10 +18,12 @@ const ALLOWED_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
 
 export interface AppOptions extends ServiceOptions {
 	corsOrigins: string[];
+	hub?: Partial<HubOptions>;
 }
 
 export const createApp = (options: AppOptions) => {
 	const services = createServices(options);
+	const hub = createHub(services, options.hub);
 	const app = new Hono<AppEnv>();
 
 	app.use('*', async (c, next) => {
@@ -57,6 +61,19 @@ export const createApp = (options: AppOptions) => {
 		}
 	});
 
+	// Live sync (hub.ts). Browsers send Origin on a WebSocket upgrade, and CORS doesn't apply to it, so check it here.
+	app.get(
+		'/live',
+		async (c, next) => {
+			if (!options.corsOrigins.includes(c.req.header('origin') ?? '')) {
+				return c.json({ message: 'Origin not allowed' }, 403);
+			}
+			await next();
+		},
+		upgradeWebSocket(c => hub.events(clientIp(c, services.trustProxy))),
+		c => c.json({ message: 'Expected a WebSocket upgrade' }, 426)
+	);
+
 	app.route('/', authRoutes(services));
 	app.route('/', roomRoutes(services));
 	app.route('/', warehouseRoutes(services));
@@ -76,7 +93,7 @@ export const createApp = (options: AppOptions) => {
 		return c.json({ message: 'Internal server error' }, 500);
 	});
 
-	return { app: app, services: services };
+	return { app: app, services: services, hub: hub };
 };
 
 // Resolves once the server is listening; port 0 picks a free port
@@ -87,7 +104,8 @@ export const listen = (app: Hono<AppEnv>, port: number, hostname?: string) => {
 			port: port,
 			hostname: hostname,
 			// Keep the standard Request and Response globals, which tests and other code share
-			overrideGlobalObjects: false
+			overrideGlobalObjects: false,
+			websocket: { server: new WebSocketServer({ noServer: true, maxPayload: MAX_HELLO_BYTES }) }
 		}, info => resolve({ server: server as Server, port: info.port }));
 	});
 };
