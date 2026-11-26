@@ -1,18 +1,18 @@
 # Setup and handoff
 
 Everything a new session needs to work on Sync Steel, the Forge Steel ⇄ Owlbear Rodeo sync.
-- **Finishing Phase 4?** See [Phase 4](#phase-4-owlbear-forge-steel--token-built-not-yet-merged). **Starting Phase 5?** Begin at [Next: Phase 5](#next-phase-5-owlbear-token--forge-steel).
+- **Starting Phase 5?** Begin at [Next: Phase 5](#next-phase-5-owlbear-token--forge-steel). Phase 4 is merged; its few remaining checks are under [Phase 4](#phase-4-owlbear-forge-steel--token-merged).
 - The group's how-to (players and GM) is [how-to.md](./how-to.md); both Railway services are described in [railway.md](./railway.md).
 - Decisions made since the report are in [decisions.md](./decisions.md). Background is in [plan.md](./plan.md) and the [research report](./forgesteel-owlbear-sync-report.md); the report wins over the plan, and decisions.md wins over both.
 - Phase 0 results are in [spike-results.md](./spike-results.md).
 
-## Current state (25 Nov 2026)
+## Current state (26 Nov 2026)
 
 | Item | State |
 |---|---|
 | Fork | [`treyrumsey/forgesteel-owlbear-sync`](https://github.com/treyrumsey/forgesteel-owlbear-sync), public, linked to `andyaiken/forgesteel` |
 | Local clone | `~/dev/forgesteel-owlbear-sync`. Remotes: `origin` (your fork) and `upstream` (`git@github.com:andyaiken/forgesteel.git`) |
-| Branches | **`main`** holds Phases 0 and 1 (PRs #1 and #2), on top of upstream `3c6b4ab` ("Dice false", 20 Nov 2026).<br>**Phase 2** merged in PR #3 (`sync-steel/phase-2`), with fixes in #4 and #5.<br>**Phase 3** (live sync) merged in PR #6 and deployed on 25 Nov 2026.<br>**Phase 4** (Owlbear, Forge Steel → token) is on `sync-steel/phase-4`, not yet merged or deployed.<br>`main` has a ruleset requiring the `check` status, with no force-pushes or deletion, and auto-merge is allowed.<br>Work on **one branch per phase off `main`** and merge back by PR **with a merge commit**; never squash or rebase. `gh pr create` defaults to upstream, so pass `--repo treyrumsey/forgesteel-owlbear-sync` |
+| Branches | **`main`** holds Phases 0 and 1 (PRs #1 and #2), on top of upstream `3c6b4ab` ("Dice false", 20 Nov 2026).<br>**Phase 2** merged in PR #3 (`sync-steel/phase-2`), with fixes in #4 and #5.<br>**Phase 3** (live sync) merged in PR #6 and deployed on 25 Nov 2026.<br>**Phase 4** (Owlbear, Forge Steel → token) merged in PR #7 (`41f2130b`) and deployed on 26 Nov 2026.<br>`main` has a ruleset requiring the `check` status, with no force-pushes or deletion, and auto-merge is allowed.<br>Work on **one branch per phase off `main`** and merge back by PR **with a merge commit**; never squash or rebase. `gh pr create` defaults to upstream, so pass `--repo treyrumsey/forgesteel-owlbear-sync` |
 | Name | **Sync Steel** (it was "Table Link" until Phase 1; see [decisions](./decisions.md#name-sync-steel)) |
 | Dependencies | Installed with `npm ci`, `npm ci --prefix server` and `npm ci --prefix obr-extension` on Node 26 |
 | Node | **v26.13.1 "Lithium"**, the latest stable release and the Active LTS. It's the nvm `default`. It satisfies `engines.node >= 24`. See [Node version](#node-version) |
@@ -30,7 +30,7 @@ Everything a new session needs to work on Sync Steel, the Forge Steel ⇄ Owlbea
 | Item | Value |
 |---|---|
 | Project | `sync-steel` (`5726124d-ee72-45a4-9063-d4e99ca74c30`), environment `production` (`847cb03a-42c1-44ee-a97c-0e86e9d12741`) |
-| Services | `api` (`00e960ac-ff05-4d56-8b99-84789a92f9a9`): `server/Dockerfile`, watch paths `server/**`. Setup commands in [server/README.md](../../server/README.md#railway).<br>`fs-web` (`3b8d58cf-ca8a-4cc1-b5cb-b5bb16deee92`): `Dockerfile.sync-steel`, watch paths `**` minus `server/`, `obr-extension/`, `docs/`. Setup commands in [railway.md](./railway.md).<br>Both: health check `/healthz`, no sleeping, deploy `main` with "Wait for CI" |
+| Services | `api` (`00e960ac-ff05-4d56-8b99-84789a92f9a9`): `server/Dockerfile` (built from the repo root), watch paths `server/**` (**Phase 4's new paths are not set yet**; see [railway.md](./railway.md)). Setup commands in [server/README.md](../../server/README.md#railway).<br>`fs-web` (`3b8d58cf-ca8a-4cc1-b5cb-b5bb16deee92`): `Dockerfile.sync-steel`, watch paths `**` minus `server/`, `obr-extension/`, `docs/` (Phase 4 drops the `obr-extension/` exclusion; not set yet). Serves the Owlbear extension at `/owlbear/`. Setup commands in [railway.md](./railway.md).<br>Both: health check `/healthz`, no sleeping, deploy `main` with "Wait for CI" |
 | Addresses | Web app **`https://syncsteel.app`** (bought through Railway; also `https://fs-web-production-33b435c3.up.railway.app`).<br>api **`https://api-production-d612ac15.up.railway.app`** (generated; players never type it) |
 | Volume | `api-volume` at `/data` (volume instance `3d1716a9-e86a-4bc6-8caf-813e80c327db`). Database `/data/sync-steel-live.db`; daily snapshots in `/data/snapshots-live/`, last 14 kept. The pre-go-live files (`/data/sync-steel.db`, `/data/snapshots/`) hold only test rooms; see [railway.md](./railway.md#resetting-the-apis-database) |
 | Variables | `JWT_SECRET`, `JWT_REFRESH_SECRET` and `TOKEN_HASH_KEY` (random, never printed), plus `DATABASE_PATH=/data/sync-steel-live.db`, `SNAPSHOT_DIR=/data/snapshots-live`, `TRUST_PROXY=1`, `MAX_ROOMS=10` and `CORS_ORIGINS` (`https://syncsteel.app`, the fs-web generated domain, and localhost dev).<br>fs-web: `FORGESTEEL_SYNC_STEEL_API_HOST` (the api's address) and `PORT=80` |
@@ -124,7 +124,7 @@ The local fork (`http://localhost:5173`) may also connect to the deployed api; i
 
 ## Next: Phase 5, Owlbear, token → Forge Steel
 
-**Before starting it:** merge and deploy Phase 4 (below), outside a play session, and finish its checks in Owlbear.
+**Before starting it:** set Phase 4's Railway watch paths and run its production check, if [Phase 4's "To finish"](#phase-4-owlbear-forge-steel--token-merged) still lists them.
 
 **Goal** (report §11, item 5): a change made on a linked token in Draw Steel Tools (stamina, temporary stamina, recoveries, surges, heroic resource) and conditions added or removed in Owlbear reach the hero in Forge Steel. The parts are edit forwarding, patches through the server's merge, the Party Continuity stale-restore guard, and condition editing. Background: report §4.5 (`patch`/`ack`), §4.7 ("Token edits → server"), §4.8 stage 4, §4.9, spike findings 8 and 9, and the [Phase 4 decisions](./decisions.md#phase-4-owlbear-forge-steel--token-25-nov-2026).
 
@@ -136,11 +136,11 @@ The local fork (`http://localhost:5173`) may also connect to the deployed api; i
 
 **Suggested first prompt for the new session:**
 
-> Read `docs/sync-steel/SETUP.md`, starting with "Next: Phase 5", then `docs/sync-steel/decisions.md` (Phase 4 first) and report §4.5 and §4.7–4.9. Use Node 26 (`nvm use 26`). Make sure Phase 4 is merged and deployed, then create the branch `sync-steel/phase-5` from `main`. Plan Phase 5 and confirm the open decisions with me before building. The group is using production, so deploy outside play sessions.
+> Read `docs/sync-steel/SETUP.md`, starting with "Next: Phase 5", then `docs/sync-steel/decisions.md` (Phase 4 first) and report §4.5 and §4.7–4.9. Use Node 26 (`nvm use 26`). Finish anything left in Phase 4's "To finish" list (ask me before changing Railway), then create the branch `sync-steel/phase-5` from `main`. Plan Phase 5 and confirm the open decisions with me before building. The group is using production, so deploy outside play sessions.
 
-## Phase 4, Owlbear, Forge Steel → token (built; not yet merged)
+## Phase 4, Owlbear, Forge Steel → token (merged)
 
-Branch `sync-steel/phase-4`. Every decision is in [decisions.md](./decisions.md#phase-4-owlbear-forge-steel--token-25-nov-2026).
+Merged from `sync-steel/phase-4` in PR #7 on 26 Nov 2026. Every decision is in [decisions.md](./decisions.md#phase-4-owlbear-forge-steel--token-25-nov-2026).
 
 1. ✅ **Hero summaries on the server:** `vite.sync-steel-summary.config.ts` bundles `HeroSummaryLogic` with upstream's `HeroLogic`; `server/Dockerfile` builds it and `server/src/summary.ts` loads it.
 2. ✅ **The Owlbear token** (migration 003, `POST /gm/owlbear`): a GM-seat device that `/connect` refuses. The hub sends it hero summaries (only when they change), deletions and `synced`.
@@ -165,21 +165,15 @@ Branch `sync-steel/phase-4`. Every decision is in [decisions.md](./decisions.md#
    - **Images, built and run locally:**
      - the api image applies migration 003, loads the bundle and sends a Talent's summary (18 stamina, 8 recoveries, Clarity) over `/live`;
      - the fs-web image serves `/owlbear/manifest.json` and the icons with CORS for `owlbear.rodeo` only, and 404s for missing extension files.
-   - **Not yet:** the extension in a real Owlbear room (steps below), and production.
+   - **In Owlbear, locally** (26 Nov 2026), in a test room with Draw Steel Tools: linking, stats and condition badges all worked. The one issue, **Link to hero** still showing on an already linked token, was fixed: it now shows only on unlinked tokens (relink by unlinking first).
+   - **Not yet:** production.
 
 **To finish:**
-1. **In Owlbear, locally** ([obr-extension/README.md](../../obr-extension/README.md#run-locally)), in a test room with Draw Steel Tools, as the GM plus a second player account:
-   1. connect, and link two tokens, one found by name match;
-   2. damage, temporary stamina, a recovery and a heroic resource change in Forge Steel reach the token within about 3 s;
-   3. a condition's badge shows on both clients;
-   4. rapid +/- in Forge Steel brings no rate-limit lines in the console;
-   5. with the GM gone, the player's client takes over writing;
-   6. a scene switch keeps the links and stats;
-   7. DST's notes, `gmOnly` and resource button are untouched.
-2. **Railway:** set the new watch paths ([railway.md](./railway.md)) before merging.
-3. Open the PR (`--repo treyrumsey/forgesteel-owlbear-sync`) and merge it with a merge commit once `check` passes.
-4. **Deploy outside a play session.** Both services redeploy; the api applies migration 003 and restarts for a few seconds.
-5. **On production:** add `https://syncsteel.app/owlbear/manifest.json` to a test room, connect, link, and check `railway logs --service api` for `Owlbear connected`. Repeat with the PWA installed on the GM's laptop. Then set up the group's room (how-to, "Owlbear").
+1. ✅ In Owlbear, locally (see Verified).
+2. ✅ PR #7 merged with a merge commit; both services deployed it on merge (26 Nov 2026, 11:34 ET). The api applied migration 003 and passes `/healthz`; `https://syncsteel.app/owlbear/manifest.json` returns 200.
+3. **Railway watch paths:** still the Phase 3 ones. Set Phase 4's ([railway.md](./railway.md)) so upstream merges rebuild the api's summaries and extension-only changes redeploy fs-web. Ask the user first.
+4. **On production:** add `https://syncsteel.app/owlbear/manifest.json` to a test room, connect, link, and check `railway logs --service api` for `Owlbear connected`. Repeat with the PWA installed on the GM's laptop. Then set up the group's room (how-to, "Owlbear").
+5. Optional, not yet done: the GM-leaves writer handoff with a second player account, if it wasn't part of the local test.
 
 ## Phase 3, live sync (done)
 
