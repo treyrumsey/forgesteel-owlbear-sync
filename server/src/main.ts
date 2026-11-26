@@ -1,6 +1,7 @@
 import { createApp, listen } from './app.ts';
 import { createSnapshotter } from './snapshots.ts';
 import { loadConfig } from './config.ts';
+import { loadSummarizer } from './summary.ts';
 import { migrate } from './db/migrate.ts';
 import { openDatabase } from './db/database.ts';
 import { seedDevRoom } from './dev-seed.ts';
@@ -30,6 +31,14 @@ const db = openDatabase(config.databasePath);
 const applied = migrate(db);
 writeLine(`Database ${config.databasePath}${applied.length > 0 ? `; applied ${applied.join(', ')}` : ''}`);
 
+const summarize = await loadSummarizer(config.summaryModule);
+if (!summarize) {
+	if (config.production) {
+		stop(`The hero summary bundle is missing at ${config.summaryModule}. server/Dockerfile builds it.`);
+	}
+	process.stderr.write(`Warning: no hero summary bundle at ${config.summaryModule}, so the Owlbear extension can't connect. Build it from the repository root with: npx vite build --config vite.sync-steel-summary.config.ts\n`);
+}
+
 const { app, services, hub } = createApp({
 	db: db,
 	corsOrigins: config.corsOrigins,
@@ -41,6 +50,7 @@ const { app, services, hub } = createApp({
 	revisionKeepLast: config.revisionKeepLast,
 	revisionDailyDays: config.revisionDailyDays,
 	snapshotDir: config.snapshotDir,
+	summarize: summarize,
 	log: writeLine
 });
 

@@ -59,6 +59,21 @@ They're on the **Sync Steel** page on any GM device. The GM sees every player's 
   - rename a seat by clicking the pencil next to its name;
   - **Disconnect** a lost or old device. Its seat and heroes stay, and the player can join again.
 
+### Owlbear
+
+The **Sync Steel** Owlbear extension shows each hero's stamina, recoveries, surges, heroic resource and conditions on their **Draw Steel Tools** token, and keeps them up to date from Forge Steel. Set it up once, on the GM's laptop:
+
+1. **Add the extension:** in the Owlbear room, open **Extensions → Add custom extension** and enter `https://syncsteel.app/owlbear/manifest.json`.
+2. **Connect the room:** on the Sync Steel page, open **GM tools → Owlbear → Connect Owlbear**, and copy the connection it shows. In Owlbear, open the **Sync Steel** button in the toolbar, paste it and press **Connect**. The connection is shown only once; if you lose it, make a new one (the old one stops working).
+3. **Link each hero's token:** right-click the token → **Link to hero**, and pick the hero. Heroes whose name matches the token are at the top. The link stays on the token, so you link once even if you move it between scenes. To link a token to a different hero, choose **Unlink from hero** first.
+
+**At the table:**
+- **Changes come from Forge Steel.** Damage, temporary stamina, recoveries, surges, heroic resources and conditions changed in Forge Steel show on the token within a few seconds.
+- **For now, change them in Forge Steel, not on the token.** A change made on the token stays only until the hero next changes. Sending token changes back to Forge Steel is the next phase.
+- **Conditions** show as coloured labels next to the token. Players don't see them on tokens you've hidden.
+- **The popover** shows whether the room is connected, which device is updating the tokens (yours, while you're in the room) and every linked token in the scene.
+- **To stop:** right-click a token → **Unlink from hero**, or **Disconnect this room** in the popover. Tokens keep the stats they show.
+
 ### If the server is lost entirely
 
-Create a new room, then **Restore from an export** with your latest export file. Give the players the new join code; each picks their seat again.
+Create a new room, then **Restore from an export** with your latest export file. Give the players the new join code; each picks their seat again. Then connect Owlbear again (GM tools → Owlbear); token links survive, because hero ids don't change.

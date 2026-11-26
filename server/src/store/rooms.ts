@@ -26,7 +26,11 @@ export interface DeviceRow {
 	created_at: string;
 	last_used_at: string | null;
 	revoked_at: string | null;
+	kind: DeviceKind;
 }
+
+// An Owlbear token is a device in the GM seat that only receives hero summaries (migration 003)
+export type DeviceKind = 'device' | 'owlbear';
 
 export interface AuditRow {
 	id: number;
@@ -62,7 +66,7 @@ export const createRoomStore = (db: DatabaseSync, nowIso: () => string) => {
 		findSeatByName: db.prepare('SELECT * FROM seats WHERE room_id = ? AND name = ? COLLATE NOCASE'),
 		getGmSeat: db.prepare('SELECT * FROM seats WHERE room_id = ? AND is_gm = 1'),
 		renameSeat: db.prepare('UPDATE seats SET name = ? WHERE id = ?'),
-		insertDevice: db.prepare('INSERT INTO devices (id, seat_id, token_hash, label, created_at) VALUES (?, ?, ?, ?, ?)'),
+		insertDevice: db.prepare('INSERT INTO devices (id, seat_id, token_hash, label, created_at, kind) VALUES (?, ?, ?, ?, ?, ?)'),
 		getDevice: db.prepare('SELECT * FROM devices WHERE id = ?'),
 		findDeviceByToken: db.prepare('SELECT * FROM devices WHERE token_hash = ?'),
 		listDevices: db.prepare('SELECT devices.* FROM devices JOIN seats ON seats.id = devices.seat_id WHERE seats.room_id = ? ORDER BY devices.created_at'),
@@ -100,8 +104,8 @@ export const createRoomStore = (db: DatabaseSync, nowIso: () => string) => {
 			sql.renameSeat.run(name, id);
 		},
 
-		createDevice: (device: { id: string, seatId: string, tokenHash: string, label: string }) => {
-			sql.insertDevice.run(device.id, device.seatId, device.tokenHash, device.label, nowIso());
+		createDevice: (device: { id: string, seatId: string, tokenHash: string, label: string, kind?: DeviceKind }) => {
+			sql.insertDevice.run(device.id, device.seatId, device.tokenHash, device.label, nowIso(), device.kind ?? 'device');
 		},
 		getDevice: (id: string) => sql.getDevice.get(id) as DeviceRow | undefined,
 		findDeviceByTokenHash: (hash: string) => sql.findDeviceByToken.get(hash) as DeviceRow | undefined,

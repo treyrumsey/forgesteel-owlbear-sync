@@ -13,7 +13,7 @@ describe('loadConfig', () => {
 
 		expect(config.production).toBe(false);
 		expect(config.databasePath).toBe(DEFAULT_DEV_DATABASE);
-		expect(config.corsOrigins).toEqual([ 'http://localhost:5173', 'http://127.0.0.1:5173' ]);
+		expect(config.corsOrigins).toEqual([ 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174' ]);
 		expect(warnings[0]).toContain('JWT_SECRET, JWT_REFRESH_SECRET, TOKEN_HASH_KEY');
 	});
 

@@ -45,6 +45,8 @@ export interface Me {
 export interface GmDevice {
 	id: string;
 	label: string;
+	// 'owlbear' is the Owlbear extension's token (Phase 4)
+	kind: 'device' | 'owlbear';
 	createdAt: string;
 	lastUsedAt: string | null;
 	revokedAt: string | null;
@@ -213,6 +215,11 @@ export class SyncSteelDeviceApi {
 	me = async () => (await this.request<Me>({ method: 'GET', url: '/me' })).data;
 
 	gmRoom = async () => (await this.request<GmRoom>({ method: 'GET', url: '/gm/room' })).data;
+
+	// The room's Owlbear token, shown once; a new one disconnects the old
+	createOwlbearToken = async () => (await this.request<{ deviceId: string, token: string }>({ method: 'POST', url: '/gm/owlbear', data: {} })).data;
+
+	getHost = () => this.host;
 
 	rotateJoinCode = async () => (await this.request<{ joinCode: string }>({ method: 'POST', url: '/gm/join-code' })).data.joinCode;
 

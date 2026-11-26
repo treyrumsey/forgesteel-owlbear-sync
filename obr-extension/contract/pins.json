@@ -1,0 +1,13 @@
+{
+	"_comment": "What the Owlbear extension was checked against. .github/workflows/sync-steel-external.yml compares these daily; update them only after checking dst-token.ts against the new schema and testing in Owlbear.",
+	"drawSteelTools": {
+		"repo": "SeamusFinlayson/draw-steel-tools-2",
+		"path": "src/types/tokenDataZod.ts",
+		"commit": "a445eb9",
+		"sha256": "1ab0b438c7f4e652ae7fc98fe9a35f845cc3ae1d0ea557a236fcb939e671bfa0"
+	},
+	"owlbearSdk": {
+		"package": "@owlbear-rodeo/sdk",
+		"version": "3.1.0"
+	}
+}

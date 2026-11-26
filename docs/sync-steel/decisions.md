@@ -2,6 +2,63 @@
 
 Decisions that change or refine the [research report](./forgesteel-owlbear-sync-report.md), newest first. Each says what was decided, why, and what it replaced. Setup and current state are in [SETUP.md](./SETUP.md).
 
+## Phase 4: Owlbear, Forge Steel → token (25 Nov 2026)
+
+The first four were confirmed with the user before building; the rest are defaults chosen while planning, listed so they can be revisited. Built on branch `sync-steel/phase-4`.
+
+### Summaries are computed on the server, from a bundle
+
+**Decision:** the api computes each hero's summary with the fork's own `HeroSummaryLogic` (Phase 0), which calls upstream's `HeroLogic`. `vite.sync-steel-summary.config.ts` bundles them into one ESM file, `server/build/hero-summary.mjs` (about 4 MB), and the api loads it at startup (`server/src/summary.ts`). This settles the open question left by Phase 3.
+
+**Why a bundle:** Node's type stripping can't run upstream's code (enums, `@/` imports), and `HeroLogic` pulls in upstream's class and ancestry data.
+
+**Why the server rather than the extension:** the extension then needs no copy of `HeroLogic`, and its token never sees whole heroes. Phase 5 needs `HeroLogic` on the server anyway, to turn token edits back into hero state.
+
+**Consequences:**
+- `server/Dockerfile` has a first stage that installs the root packages and builds the bundle.
+- The api's Railway watch paths include `src/**`, so the summaries follow upstream. Every daily upstream merge (09:23 UTC) therefore restarts the api for a few seconds, early in the morning US time.
+- **Locally,** the server runs without the bundle, with a warning, and turns Owlbear away (close code 4003). In production it won't start without it.
+- `summary.test.ts` builds the bundle and checks it gives the same summaries as the source for a Fury, a level 10 Beastheart and a Talent.
+
+### The Owlbear token
+
+**Decision:** the extension signs in to the hub with a **room-scoped Owlbear token**:
+- The GM creates it in **GM tools → Owlbear** (`POST /gm/owlbear`). The page shows it once, inside a connection string with the api's address, which the GM pastes into the extension.
+- It's stored in the Owlbear room's metadata, so every client in the room can use it.
+- **It's a device in the GM seat with `kind = 'owlbear'`** (migration `003-owlbear-token.sql`), so it's listed and disconnected like any device, and disconnecting closes its sockets at once.
+- **Scope:** `/connect` refuses it, so it can't use the Warehouse API. The hub sends it summaries of every hero in the room and never whole heroes. Phase 5 adds token patches.
+- **One per room:** a new one disconnects the previous one.
+- Every client in the Owlbear room shares it, so the hub allows it 20 sockets (a device gets 4).
+
+**Why:** anyone in the Owlbear room can read room metadata (spike finding 6), so it must not hold a GM device token or the GM key. Making it in the Sync Steel page keeps the GM key out of Owlbear's iframe storage too.
+
+### The extension is served by fs-web
+
+**Decision:** `Dockerfile.sync-steel` builds `obr-extension/` with base `/owlbear/`, so the manifest is `https://syncsteel.app/owlbear/manifest.json`. No new service is needed, and the extension's origin is the app's, already in the api's `CORS_ORIGINS`.
+
+**nginx:** fs-web now uses `nginx/sync-steel.conf`, which is upstream's `nginx/default.conf` plus marked Sync Steel blocks. The extension's location allows CORS for `*.owlbear.rodeo` only and has no app fallback. `nginx.test.ts` fails if the rest drifts from upstream's file.
+
+**The PWA's service worker:** upstream's workbox `navigateFallback` would answer unknown navigations with the app. It can't affect the extension, though: inside Owlbear the extension is a third-party iframe, and browsers partition service workers by top-level site. The app's worker, registered first-party, never controls that iframe. This is checked by hand with the PWA installed.
+
+**Railway:** fs-web's watch paths no longer exclude `obr-extension/`.
+
+### Condition badges in Phase 4
+
+**Decision:** each Owlbear client draws a coloured label for each condition next to a linked token, as local items attached to it. The conditions come from the token's link, which the writer keeps current. Players don't get badges for tokens the GM has hidden. Adding or removing conditions from Owlbear is Phase 5.
+
+### Defaults chosen while planning
+
+- **Linking:** a GM-only token menu, **Link to hero**, opens a picker listing the room's heroes with name matches first. **Unlink from hero** removes the link; the token keeps its stats.
+- **The writer:** a GM first, then the lowest connection id. With nobody else connected, a player's client writes.
+- **Edits on the token:** in Phase 4, a DST edit to a synced field stays until the hero next changes (or a stale token is reconciled). The how-to says to edit in Forge Steel until Phase 5.
+- **Summaries only when they change:** the hub pushes a summary only if it differs from the last one, so a token's `syncedRev` is the revision its summary was computed at, not always the hero's latest. **Phase 5's staleness guard must compare against the latest summary's revision**, not the hero's.
+- **Re-asserting after a clobber:** 1.5 s after a write, a field back at its old value is DST saving an older copy (spike finding 8), and is written again.
+- **The spike tool** stays as a development-only page (`spike.html`), not in the build.
+
+### External contract checks
+
+**Decision:** `.github/workflows/sync-steel-external.yml` runs daily. It compares Draw Steel Tools' `src/types/tokenDataZod.ts` (by SHA-256) and the latest `@owlbear-rodeo/sdk` version with `obr-extension/contract/pins.json`. On a difference it opens one `external-contract` issue. This was deferred from Phase 2. Pinned on 25 Nov 2026: DST at `a445eb9` (its latest commit, 24 Jul 2026) and SDK 3.1.0.
+
 ## Phase 3: live sync (23 Nov 2026)
 
 All confirmed with the user before building, except the counter rule and the session base, which came out of the live test and were confirmed then. Built on branch `sync-steel/phase-3`.

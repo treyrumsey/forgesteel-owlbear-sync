@@ -5,10 +5,11 @@ The backend for the Sync Steel fork (report §4.3–4.5, decisions in [decisions
 - rooms, seats and revocable device tokens;
 - hero revisions;
 - GM tools: restore, audit, export and import, and daily snapshots;
-- live sync (Phase 3): the three-way hero merge and the WebSocket hub at `GET /live`.
+- live sync (Phase 3): the three-way hero merge and the WebSocket hub at `GET /live`;
+- hero summaries for the Owlbear extension (Phase 4), over the same hub.
 
 **Stack:**
-- Node 26 runs the TypeScript directly; there's no build step.
+- Node 26 runs the TypeScript directly. The one build step is the **hero summary bundle**: the fork's `HeroSummaryLogic` and upstream's `HeroLogic`, bundled by `vite.sync-steel-summary.config.ts` into `server/build/hero-summary.mjs` (git-ignored), because Node can't run `src/` itself (enums, `@/` imports). `server/Dockerfile` builds it.
 - [Hono](https://hono.dev) on `@hono/node-server` handles HTTP, and its WebSocket support (with [`ws`](https://github.com/websockets/ws)) the live hub.
 - Storage is SQLite through the built-in `node:sqlite`, in one database file.
 
@@ -17,9 +18,12 @@ The backend for the Sync Steel fork (report §4.3–4.5, decisions in [decisions
 ```bash
 nvm use 26
 npm ci --prefix server                     # Hono, plus dev types
+npx vite build --config vite.sync-steel-summary.config.ts   # from the repo root: the hero summary bundle
 DEV_SEED=1 npm start --prefix server       # http://localhost:8787
 npm run dev --prefix server                # restarts on file changes
 ```
+
+Without the summary bundle the server still runs, with a warning, but turns the Owlbear extension away (close code 4003). Rebuild it after upstream changes `HeroLogic`.
 
 `DEV_SEED=1` creates a **Dev** room with fixed device tokens:
 - `dev-token` (seat "Dev");
@@ -36,13 +40,14 @@ To connect the fork: open the **Sync Steel** page (footer button) in `npm start`
 | `PORT` | `8787` | Listen port (Railway sets it) |
 | `DATABASE_PATH` | `server/.data/dev.db` locally; **required** on Railway | The SQLite file, on the volume in production |
 | `JWT_SECRET`, `JWT_REFRESH_SECRET`, `TOKEN_HASH_KEY` | fixed development values locally; **required** on Railway (32+ characters, all different) | Signing keys for access and refresh tokens, and the HMAC key for stored secrets. **Changing `TOKEN_HASH_KEY` invalidates every device token, join code and GM key** |
-| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Exact origins allowed to make credentialed requests. Production lists `https://syncsteel.app` too (see [railway.md](../docs/sync-steel/railway.md)) |
+| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174` (the fork's and the Owlbear extension's dev servers) | Exact origins allowed to make credentialed requests. Production lists `https://syncsteel.app` too (see [railway.md](../docs/sync-steel/railway.md)) |
 | `TRUST_PROXY` | off | Read the client IP from `X-Real-IP` (Railway sets it) for rate limits |
 | `MAX_ROOMS` | `10` | Room creation is open, so the server holds at most this many rooms |
 | `ACCESS_TOKEN_TTL_SECONDS`, `REFRESH_TOKEN_TTL_SECONDS` | 15 minutes, 90 days | Token lifetimes |
 | `REVISION_KEEP_LAST`, `REVISION_DAILY_DAYS` | `100`, `90` | Each hero keeps its last N revisions, plus each day's last revision for this many days |
 | `SNAPSHOT_DIR`, `SNAPSHOT_KEEP` | `snapshots/` next to the database, `14` | Daily whole-database copies; `SNAPSHOT_KEEP=0` turns them off |
 | `DEV_SEED` | off | Create the Dev room. Refused in production |
+| `SUMMARY_MODULE` | `server/build/hero-summary.mjs` | The hero summary bundle. Required in production: the server won't start without it |
 
 The server counts as **in production** when Railway's variables are present or `NODE_ENV=production`. There it refuses to start without real secrets and a `DATABASE_PATH`.
 
@@ -89,6 +94,16 @@ Behaviour details:
 | ← `{ type: "hero.deleted", heroId }` | |
 | → `{ type: "ping" }` / ← `{ type: "pong" }` | The app checks the socket when it comes back to the foreground |
 
+**The Owlbear extension** (Phase 4) says hello with the room's **Owlbear token** instead of a device token. It sees every hero in the room, as the GM does, but never whole heroes:
+
+| Message | Notes |
+|---|---|
+| ← `{ type: "welcome", serverTime, kind: "obr", room: { name } }` | Then a summary of each hero it doesn't have at the current revision, `hero.deleted` for any it has that are gone, and `synced` |
+| ← `{ type: "summary", summary }` | `{ heroId, rev, seatName, name, staminaMax, stamina, staminaTemp, recoveriesMax, recoveries, surges, resource: { featureId, name, value } \| null, conditions }` (`src/summary.ts`). Sent only when the summary changed, so a notes or inventory edit doesn't reach Owlbear, and `rev` is the revision it was computed at |
+| ← `{ type: "synced" }` | The catch-up is complete |
+
+Every Owlbear client in the room shares the token, so up to 20 sockets may use it. A server without the summary bundle closes the Owlbear hello with `4003`.
+
 - **Visibility:** the same as the Warehouse API: players get their seat's heroes; the GM gets the room's.
 - **Origin:** the upgrade must come from one of `CORS_ORIGINS` (`403` otherwise).
 - **Close codes:** `4001` for a bad or revoked device token (also sent at once when the GM disconnects the device), `4008` when a device opens more than 4 sockets (the oldest closes) or a room passes 60, `4029` after too many failed tokens, `1009` for a message over 1 KB after hello.
@@ -118,6 +133,7 @@ Join codes are 10 Crockford base32 characters shown as `XXXXX-XXXXX`. They're ca
 | `GET /gm/audit?limit=` | Joins, revocations, code rotations, deletes, restores, exports and imports |
 | `GET /gm/export` | The whole room as `sync-steel-<room>-<date>.json.gz`. No device tokens or secrets |
 | `POST /gm/import[?dryRun=1]` | Restores an export (gzipped or plain). Seats match by id, then name. Heroes and homebrew are upserted as new revisions. It never deletes |
+| `POST /gm/owlbear` | Creates the room's Owlbear token → `{ deviceId, token }`, shown once. It's a device in the GM seat with `kind: "owlbear"` (migration 003): it's listed and disconnected like a device, the hub sends it summaries only, and `/connect` refuses it, so it can't use the Warehouse API. A new one disconnects the previous one |
 | `GET /gm/snapshots`, `GET /gm/snapshots/{date}/export` | Lists the daily snapshots, and exports this room from one, ready for `POST /gm/import` |
 
 **Limits:**
@@ -151,13 +167,15 @@ railway variable set DATABASE_PATH=/data/sync-steel.db TRUST_PROXY=1 MAX_ROOMS=1
 	"CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173" --service api --skip-deploys
 railway environment edit --json <<'JSON'
 {"services":{"<api service id>":{
-	"build":{"builder":"DOCKERFILE","dockerfilePath":"server/Dockerfile","watchPatterns":["server/**"]},
+	"build":{"builder":"DOCKERFILE","dockerfilePath":"server/Dockerfile","watchPatterns":["server/**","src/**","vite.sync-steel-summary.config.ts","package-lock.json"]},
 	"deploy":{"healthcheckPath":"/healthz","healthcheckTimeout":120,"restartPolicyType":"ON_FAILURE","restartPolicyMaxRetries":10,"sleepApplication":false}}}}
 JSON
 railway domain --service api --port 8080
 ```
 
-**Deploy from the repo root:** `railway up --service api --ci -m "<summary>"`. The Dockerfile copies only `server/`, and the build context is the whole repo, so later phases can import `src/`.
+**Deploy from the repo root:** `railway up --service api --ci -m "<summary>"`. The build context is the whole repo: the Dockerfile's first stage builds the hero summary bundle from `src/`, and the image keeps only `server/` and the bundle.
+
+**Watch paths** include `src/**` since Phase 4 (until then `server/**` only), so the summaries follow upstream's `HeroLogic`. Each daily upstream merge (09:23 UTC) therefore redeploys the api, a few seconds' restart early in the morning US time.
 
 Each deploy restarts the service for a few seconds, so deploy outside play sessions. The service deploys the repo's `main` branch with "Wait for CI". The web app service, `fs-web`, is in [railway.md](../docs/sync-steel/railway.md).
 
@@ -181,6 +199,8 @@ npx eslint server/src
 | `src/db/` | Opening the database, migrations, and `migrations/NNN-name.sql` |
 | `src/room-export.ts` | Export and import |
 | `src/snapshots.ts` | Daily snapshots |
+| `src/hub.ts` | The live hub: whole heroes for Forge Steel devices, summaries for Owlbear |
+| `src/summary.ts` | Loads the hero summary bundle |
 | `src/tools/` | Operator scripts |
 | `src/test-support.ts` | Starts a real server on an in-memory database for tests |
 

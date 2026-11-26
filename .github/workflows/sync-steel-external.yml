@@ -1,0 +1,82 @@
+name: Sync Steel external contracts
+
+# Daily: has anything the Owlbear extension depends on, outside this repo, changed? (report §7)
+# - Draw Steel Tools' token schema (src/types/tokenDataZod.ts): the extension writes DST's token data, and
+#   DST breaks a token whose data fails that schema.
+# - The latest @owlbear-rodeo/sdk version.
+# The pins are in obr-extension/contract/pins.json. A change opens an issue labelled external-contract (unless
+# one is open already); nothing is changed automatically.
+
+on:
+  schedule:
+    - cron: '41 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: sync-steel-external
+  cancel-in-progress: false
+
+env:
+  REPO: ${{ github.repository }}
+  ISSUE_LABEL: external-contract
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+
+      - name: Compare with the pins
+        id: compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pins=obr-extension/contract/pins.json
+          dst_repo=$(jq -r .drawSteelTools.repo "$pins")
+          dst_path=$(jq -r .drawSteelTools.path "$pins")
+          dst_pinned=$(jq -r .drawSteelTools.sha256 "$pins")
+          sdk_pinned=$(jq -r .owlbearSdk.version "$pins")
+
+          dst_head=$(gh api "repos/$dst_repo/commits/HEAD" --jq '.sha[0:7]')
+          dst_now=$(gh api "repos/$dst_repo/contents/$dst_path" -H 'Accept: application/vnd.github.raw' | sha256sum | cut -d' ' -f1)
+          sdk_now=$(npm view @owlbear-rodeo/sdk version)
+
+          problems=""
+          if [ "$dst_now" != "$dst_pinned" ]; then
+            problems+="- **Draw Steel Tools' token schema changed** ([\`$dst_path\` at $dst_head](https://github.com/$dst_repo/blob/$dst_head/$dst_path)). Check \`obr-extension/src/dst-token.ts\` against it, test in Owlbear, then update the hash in \`obr-extension/contract/pins.json\`."$'\n'
+          fi
+          if [ "$sdk_now" != "$sdk_pinned" ]; then
+            problems+="- **@owlbear-rodeo/sdk $sdk_now is out** (pinned: $sdk_pinned). Read its changelog, update \`obr-extension\`, test in Owlbear, then update \`obr-extension/contract/pins.json\`."$'\n'
+          fi
+
+          echo "Draw Steel Tools schema: $dst_now (pinned $dst_pinned, head $dst_head)"
+          echo "Owlbear SDK: $sdk_now (pinned $sdk_pinned)"
+          {
+            echo 'problems<<EOF'
+            printf '%s' "$problems"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or update an issue
+        if: steps.compare.outputs.problems != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROBLEMS: ${{ steps.compare.outputs.problems }}
+        run: |
+          gh label create "$ISSUE_LABEL" --repo "$REPO" --color 5319e7 --description 'Something the Owlbear extension depends on changed' --force
+          body="$PROBLEMS"$'\n'"Run: $GITHUB_SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID"
+          issue=$(gh issue list --repo "$REPO" --label "$ISSUE_LABEL" --state open --json number --jq '.[0].number // empty')
+          # One open issue is enough: don't add a comment every day until it's dealt with
+          if [ -z "$issue" ]; then
+            gh issue create --repo "$REPO" --label "$ISSUE_LABEL" --title 'External contract: something the Owlbear extension depends on changed' --body "$body"
+          fi

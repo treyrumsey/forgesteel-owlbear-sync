@@ -346,6 +346,13 @@ server → obr     ack       { editId, rev }  |  reject { editId, reason }
 >
 > The protocol is in [server/README.md](../../server/README.md#api); see also [decisions](./decisions.md#the-hub-pushes-the-whole-hero).
 
+> **Phase 4 (25 Nov 2026):** the Owlbear side of the hub is built.
+> - **Sign-in:** the extension says hello with the room's **Owlbear token**, a GM-seat device the Warehouse API refuses.
+> - **Summaries:** it receives `summary` (with `seatName`) only when a hero's summary changed, plus `hero.deleted`, and `synced` after the catch-up.
+> - **Not yet:** `patch`, `ack` and `reject` are Phase 5.
+>
+> See [decisions](./decisions.md#phase-4-owlbear-forge-steel--token-25-nov-2026).
+
 ### 4.6 Forge Steel fork: the Sync Steel module (`src/sync-steel/`)
 
 **Room panel:**
@@ -382,6 +389,13 @@ Writes follow the pacing rules in §4.8, re-read the token immediately before wr
 > **Spike results (22 Nov 2026,** [findings 6–7](./spike-results.md#6-owner-only-does-not-stop-extension-writes)**):**
 > - **Owner Only doesn't block extension metadata writes.** A player wrote the GM's token with Owner Only on, so step 2's creator check can go. The fallback writer is any connected client: whether removing Character **Update** blocks writes is untested.
 > - **Two clients writing one token at once lost 39 of 80 updates.** The election must therefore guarantee exactly one writer per token. Every client computes the same choice from `OBR.party`: a GM first, then the lowest connection id, which also breaks ties when the GM has two devices.
+
+> **Phase 4 (25 Nov 2026):** built as described, with changes ([decisions](./decisions.md#phase-4-owlbear-forge-steel--token-25-nov-2026)):
+> - **Room binding:** the GM pastes a connection string from the Sync Steel page's GM tools (api address plus a room-scoped Owlbear token) instead of the GM key.
+> - **Linking:** with a picker (name matches first) from a GM token menu.
+> - **Writer:** chosen by a GM first, then the lowest connection id.
+> - **Badges:** local labels.
+> - **Hosting:** fs-web serves the extension at `/owlbear/`.
 
 **Token edits → server.** Only the client whose player matches `item.lastModifiedUserId` forwards a change, so each edit is sent once. The diff is taken against the last-synced snapshot and sent with `baseRev = syncedRev`.
 
@@ -628,6 +642,7 @@ No time estimates; each phase leaves something usable.
 3. **Live Forge Steel side:** the WebSocket hub, `SyncSteelProvider`, the revision stamp and three-way merge.
    - **Done 23 Nov 2026,** with changes: the hub pushes whole heroes, the merge covers top-level parts and every `state` field, and counters combine. See [decisions](./decisions.md#phase-3-live-sync-23-nov-2026).
 4. **Owlbear, Forge Steel → token:** room binding, linking, summaries, elected writer, pacing, Draw Steel Tools writes, condition badges.
+   - **Built 25 Nov 2026,** with changes: summaries come from a server-side bundle of `HeroLogic`, and the extension signs in with a room-scoped Owlbear token that the GM creates on the Sync Steel page. See [decisions](./decisions.md#phase-4-owlbear-forge-steel--token-25-nov-2026).
 5. **Owlbear, token → Forge Steel:** edit forwarding, patches, the Party Continuity stale-restore guard, condition editing.
 6. **Hardening:** rate limits, audit log views, a restore drill, monitoring, short how-to docs for the group.
 

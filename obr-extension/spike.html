@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Sync Steel spike</title>
+	</head>
+	<body>
+		<main>
+			<h1>Sync Steel spike</h1>
+			<p id="not-in-obr" class="warning" hidden>
+				Open this page from inside Owlbear Rodeo: add <code>/manifest.json</code> from this server to a room as an extension.
+			</p>
+
+			<section>
+				<h2>Status</h2>
+				<dl id="status"></dl>
+			</section>
+
+			<section>
+				<h2>Selected token</h2>
+				<pre id="token-info">Select a Draw Steel Tools hero token.</pre>
+			</section>
+
+			<section>
+				<h2>Write and verify</h2>
+				<form id="write-form">
+					<div class="grid">
+						<label>Stamina <input id="field-stamina" type="number" /></label>
+						<label>Max stamina <input id="field-staminaMaximum" type="number" /></label>
+						<label>Temp stamina <input id="field-temporaryStamina" type="number" /></label>
+						<label>Recoveries <input id="field-recoveries" type="number" /></label>
+						<label>Surges <input id="field-surges" type="number" /></label>
+						<label>Heroic resource <input id="field-heroicResource" type="number" /></label>
+						<label class="wide">Resource name <input id="field-heroicResourceName" type="text" /></label>
+					</div>
+					<div class="buttons">
+						<button id="write-button" type="submit" disabled>Write</button>
+						<button id="sample-button" type="button" disabled title="Dying Talent: stamina -2/18, temp 3, Clarity -3">Write Talent sample</button>
+					</div>
+				</form>
+			</section>
+
+			<section>
+				<h2>Burst test (lost updates)</h2>
+				<div class="grid">
+					<label>Writes <input id="burst-count" type="number" min="1" value="20" /></label>
+					<label>Every (ms) <input id="burst-interval" type="number" min="0" value="50" /></label>
+				</div>
+				<label class="check"><input id="burst-overlap" type="checkbox" checked /> Overlapping writes, like rapid clicks</label>
+				<label class="check"><input id="burst-broadcast" type="checkbox" /> Run on every client with this popover open</label>
+				<div class="buttons">
+					<button id="burst-button" type="button" disabled>Run burst (+1 stamina each)</button>
+				</div>
+			</section>
+
+			<section>
+				<h2>Log</h2>
+				<label class="check"><input id="log-verbose" type="checkbox" checked /> Log every Draw Steel Tools data change</label>
+				<div class="buttons">
+					<button id="snapshot-button" type="button" disabled>Log DST snapshot</button>
+					<button id="copy-log" type="button">Copy log</button>
+					<button id="clear-log" type="button">Clear</button>
+				</div>
+				<textarea id="log-output" readonly rows="14"></textarea>
+			</section>
+		</main>
+		<script type="module" src="/src/spike.ts"></script>
+	</body>
+</html>

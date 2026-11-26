@@ -1,7 +1,7 @@
 import { type AppEnv, type Services, createServices } from '../services.ts';
 import { HttpError, fail, readObject, requireName } from '../http.ts';
 import { buildRoomExport, importRoom, parseRoomExport } from '../room-export.ts';
-import { generateJoinCode, normalizeJoinCode } from '../secrets.ts';
+import { generateDeviceToken, generateJoinCode, normalizeJoinCode } from '../secrets.ts';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { limitBody, stampHero } from './warehouse.ts';
 import { requireDevice, requireGm } from './auth.ts';
@@ -13,6 +13,7 @@ import type { JsonObject } from '../json.ts';
 import type { RoomExport } from '../room-export.ts';
 import { join } from 'node:path';
 import { listSnapshots } from '../snapshots.ts';
+import { randomUUID } from 'node:crypto';
 
 const MAX_IMPORT_JSON_BYTES = 200 * 1024 * 1024;
 
@@ -65,6 +66,7 @@ export const gmRoutes = (s: Services) => {
 				devices: devices.filter(device => device.seat_id === seat.id).map(device => ({
 					id: device.id,
 					label: device.label,
+					kind: device.kind,
 					createdAt: device.created_at,
 					lastUsedAt: device.last_used_at,
 					revokedAt: device.revoked_at,
@@ -83,6 +85,24 @@ export const gmRoutes = (s: Services) => {
 		s.rooms.setJoinCodeHash(principal.roomId, s.hashSecret('join-code', normalizeJoinCode(joinCode) as string));
 		s.rooms.audit({ roomId: principal.roomId, seatId: principal.seatId, deviceId: principal.deviceId, action: 'room.code-rotated' });
 		return c.json({ joinCode: joinCode });
+	});
+
+	// The Owlbear extension's token (Phase 4). The Sync Steel page shows it once, in a connection string the GM
+	// pastes into the extension. A room has at most one: a new one disconnects the old.
+	app.post('/gm/owlbear', c => {
+		const principal = c.get('principal');
+		s.rooms.listDevices(principal.roomId)
+			.filter(device => (device.kind === 'owlbear') && !device.revoked_at)
+			.forEach(device => {
+				if (s.rooms.revokeDevice(device.id)) {
+					s.events.emit({ type: 'device.revoked', roomId: principal.roomId, deviceId: device.id });
+				}
+			});
+		const token = generateDeviceToken();
+		const deviceId = randomUUID();
+		s.rooms.createDevice({ id: deviceId, seatId: principal.seatId, tokenHash: s.hashSecret('device', token), label: 'Owlbear', kind: 'owlbear' });
+		s.rooms.audit({ roomId: principal.roomId, seatId: principal.seatId, deviceId: principal.deviceId, action: 'owlbear.connected', detail: { deviceId: deviceId } });
+		return c.json({ deviceId: deviceId, token: token }, 201);
 	});
 
 	app.patch('/gm/seats/:seatId', limitBody(s.bodyLimits.small), async c => {

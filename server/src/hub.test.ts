@@ -1,6 +1,11 @@
+import { HubClient, type SocketLike, testConnection } from '../../obr-extension/src/hub-client.ts';
 import { TEST_ORIGIN, type TestServer, startTestServer } from './test-support.ts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { FactoryLogic } from '@/logic/factory-logic';
+import type { HeroSummary } from '../../obr-extension/src/summary.ts';
+import { Utils } from '@/utils/utils';
 import { WebSocket } from 'ws';
+import { fury } from '@/data/classes/fury/fury';
 
 // The live-sync hub (hub.ts), over real sockets
 
@@ -148,10 +153,13 @@ describe('live sync hub', () => {
 		const access = await save(alice.deviceToken, { id: 'live-3', name: 'Sol', state: { staminaDamage: 1 } });
 		await t.putHero(access, { id: 'live-3', name: 'Sol', state: { staminaDamage: 2 } });
 		await t.putHero(access, { id: 'live-3', name: 'Sol', state: { staminaDamage: 3 } });
-		await ipad.next('hero', from);
+		while (!ipad.messages.slice(from).some(message => (message.type === 'hero') && (heroOf(message).id === 'live-3'))) {
+			await ipad.next('hero', ipad.messages.length);
+		}
 		await wait(250);
 
-		const pushes = ipad.messages.slice(from).filter(message => message.type === 'hero').map(heroOf);
+		// The catch-up for the seat's other heroes can arrive after the welcome, so look at this hero only
+		const pushes = ipad.messages.slice(from).filter(message => message.type === 'hero').map(heroOf).filter(hero => hero.id === 'live-3');
 		expect(pushes.map(hero => hero._syncSteel.rev)).toEqual([ 3 ]);
 		ipad.close();
 	});
@@ -215,5 +223,162 @@ describe('live sync hub', () => {
 		expect((await t.call('/data/forgesteel-heroes/live-7', access, { method: 'DELETE' })).status).toBe(204);
 		expect((await t.call('/data/forgesteel-heroes/live-7', access, { method: 'DELETE' })).status).toBe(204);
 		expect((await t.call('/data/forgesteel-heroes/never-was', access, { method: 'DELETE' })).status).toBe(404);
+	});
+});
+
+// A level 1 Fury, which upstream's HeroLogic gives 21 stamina and 10 recoveries (Phase 0)
+const furyHero = (id: string, name: string) => {
+	const hero = FactoryLogic.createHero();
+	hero.id = id;
+	hero.name = name;
+	hero.class = Utils.copy(fury);
+	hero.class.level = 1;
+	return JSON.parse(JSON.stringify(hero)) as { id: string, name: string, state: { staminaDamage: number, notes: string } } & Record<string, unknown>;
+};
+
+const summaryOf = (message: Message) => message.summary as { heroId: string, rev: number, seatName: string, name: string, staminaMax: number, stamina: number, recoveries: number };
+
+const summariesFor = (messages: Message[], heroId: string, from = 0) => {
+	return messages.slice(from).filter(message => (message.type === 'summary') && (summaryOf(message).heroId === heroId)).map(summaryOf);
+};
+
+describe('Owlbear on the live sync hub', () => {
+	let gmAccess: string;
+	let owlbear: string;
+
+	beforeAll(async () => {
+		gmAccess = (await t.connect(room.deviceToken)).access_token;
+		const response = await t.post('/gm/owlbear', {}, gmAccess);
+		expect(response.status).toBe(201);
+		owlbear = (await response.json() as { token: string }).token;
+	});
+
+	it('only lets the GM create an Owlbear token, which can\'t sign in to the Warehouse API', async () => {
+		const playerAccess = (await t.connect(bob)).access_token;
+
+		expect((await t.post('/gm/owlbear', {}, playerAccess)).status).toBe(403);
+		const connect = await t.call('/connect', owlbear, { method: 'POST' });
+		expect(connect.status).toBe(401);
+		expect(await connect.json()).toEqual({ message: 'This is an Owlbear connection, not a device token' });
+	});
+
+	it('sends summaries of every hero in the room, never whole heroes', async () => {
+		await save(alice.deviceToken, furyHero('obr-1', 'Kalla'));
+		const socket = await open(owlbear);
+
+		const welcome = await socket.next('welcome');
+		await socket.next('synced');
+
+		expect(welcome).toMatchObject({ kind: 'obr', room: { name: 'The Table' } });
+		expect(summariesFor(socket.messages, 'obr-1')).toEqual([
+			expect.objectContaining({ heroId: 'obr-1', rev: 1, seatName: 'Alice', name: 'Kalla', staminaMax: 21, stamina: 21, recoveries: 10 })
+		]);
+		expect(socket.messages.filter(message => message.type.startsWith('hero') && (message.type !== 'hero.deleted'))).toEqual([]);
+		socket.close();
+	});
+
+	it('pushes a summary when the table stats change, and not when only the notes do', async () => {
+		const hero = furyHero('obr-2', 'Vex');
+		const access = await save(alice.deviceToken, hero);
+		const socket = await open(owlbear, { 'obr-2': 1 });
+		await socket.next('welcome');
+		const from = socket.messages.length;
+
+		hero.state.staminaDamage = 5;
+		await t.putHero(access, hero);
+		// The catch-up also sends the room's other heroes
+		while (summariesFor(socket.messages, 'obr-2', from).length === 0) {
+			await socket.next('summary', socket.messages.length);
+		}
+		hero.state.notes = 'Owes Bob';
+		await t.putHero(access, hero);
+		await wait(250);
+
+		expect(summariesFor(socket.messages, 'obr-2', from)).toEqual([ expect.objectContaining({ rev: 2, stamina: 16 }) ]);
+		socket.close();
+	});
+
+	it('pushes deletions', async () => {
+		const access = await save(bob, furyHero('obr-3', 'Rook'));
+		const socket = await open(owlbear, { 'obr-3': 1 });
+		await socket.next('welcome');
+		const from = socket.messages.length;
+
+		await t.call('/data/forgesteel-heroes/obr-3', access, { method: 'DELETE' });
+
+		expect(await socket.next('hero.deleted', from)).toEqual({ type: 'hero.deleted', heroId: 'obr-3' });
+		socket.close();
+	});
+
+	it('lets every Owlbear client in the room connect with the shared token', async () => {
+		const sockets = await Promise.all([ 1, 2, 3, 4, 5, 6 ].map(() => open(owlbear)));
+
+		await Promise.all(sockets.map(socket => socket.next('welcome')));
+
+		sockets.forEach(socket => expect(socket.ws.readyState).toBe(WebSocket.OPEN));
+		sockets.forEach(socket => socket.close());
+	});
+
+	it('works with the extension\'s own hub client', async () => {
+		const createSocket = (url: string) => new WebSocket(url, { headers: { Origin: TEST_ORIGIN } }) as unknown as SocketLike;
+		const connection = { api: t.base, token: owlbear };
+		const received = new Map<string, HeroSummary>();
+		const deleted: string[] = [];
+		let synced = 0;
+		const client = new HubClient({
+			connection: connection,
+			createSocket: createSocket,
+			onSummary: summary => received.set(summary.heroId, summary),
+			onDeleted: heroId => deleted.push(heroId),
+			onSynced: () => synced++,
+			onStatus: () => undefined
+		});
+		const access = await save(bob, furyHero('obr-4', 'Moss'));
+
+		client.start();
+		while (synced === 0) {
+			await wait(20);
+		}
+		await t.call('/data/forgesteel-heroes/obr-4', access, { method: 'DELETE' });
+		while (deleted.length === 0) {
+			await wait(20);
+		}
+		client.stop();
+
+		expect(received.get('obr-4')).toMatchObject({ name: 'Moss', seatName: 'Bob', staminaMax: 21, resource: { name: 'Ferocity' } });
+		expect(client.get('obr-4')).toBeNull();
+		expect(deleted).toEqual([ 'obr-4' ]);
+		expect(await testConnection(connection, 2000, createSocket)).toEqual({ ok: true, roomName: 'The Table' });
+		expect(await testConnection({ api: t.base, token: bob }, 2000, createSocket)).toMatchObject({ ok: false, reason: expect.stringContaining('device token') });
+		expect(await testConnection({ api: t.base, token: 'sst_nope' }, 2000, createSocket)).toEqual({ ok: false, reason: 'Invalid token' });
+	});
+
+	it('disconnects the old Owlbear token when the GM creates a new one', async () => {
+		const socket = await open(owlbear);
+		await socket.next('welcome');
+
+		const response = await t.post('/gm/owlbear', {}, gmAccess);
+		owlbear = (await response.json() as { token: string }).token;
+
+		expect((await socket.closed).code).toBe(4001);
+		const fresh = await open(owlbear);
+		expect(await fresh.next('welcome')).toMatchObject({ kind: 'obr' });
+		fresh.close();
+	});
+});
+
+describe('Owlbear on a server without the summary bundle', () => {
+	it('turns the Owlbear extension away', async () => {
+		const bare = await startTestServer({ summarize: null });
+		const created = await bare.createRoom();
+		const access = (await bare.connect(created.deviceToken)).access_token;
+		const token = (await (await bare.post('/gm/owlbear', {}, access)).json() as { token: string }).token;
+
+		const ws = new WebSocket(`${bare.base.replace('http', 'ws')}/live`, { headers: { Origin: TEST_ORIGIN } });
+		const closed = new Promise<number>(resolve => ws.on('close', code => resolve(code)));
+		ws.on('open', () => ws.send(JSON.stringify({ type: 'hello', token: token, heroes: {} })));
+
+		expect(await closed).toBe(4003);
+		await bare.close();
 	});
 });
