@@ -19,14 +19,20 @@ export interface ServerConfig {
 	// Null when snapshots are off
 	snapshotDir: string | null;
 	snapshotKeep: number;
+	// The hero summary bundle (server/src/summary.ts)
+	summaryModule: string;
 }
 
 export type Env = Record<string, string | undefined>;
 
 // The fork's Vite dev server (npm start). Phase 2 adds the deployed fork's origin through CORS_ORIGINS.
-export const DEFAULT_CORS_ORIGINS = [ 'http://localhost:5173', 'http://127.0.0.1:5173' ];
+// Also the Owlbear extension's dev server (npm run dev --prefix obr-extension).
+export const DEFAULT_CORS_ORIGINS = [ 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174' ];
 
 export const DEFAULT_DEV_DATABASE = fileURLToPath(new URL('../.data/dev.db', import.meta.url));
+
+// Built by vite.sync-steel-summary.config.ts; server/Dockerfile puts it here too
+export const DEFAULT_SUMMARY_MODULE = fileURLToPath(new URL('../build/hero-summary.mjs', import.meta.url));
 
 const SECRET_NAMES = [ 'JWT_SECRET', 'JWT_REFRESH_SECRET', 'TOKEN_HASH_KEY' ] as const;
 const MIN_SECRET_LENGTH = 32;
@@ -109,7 +115,8 @@ export const loadConfig = (env: Env): { config: ServerConfig, warnings: string[]
 			revisionKeepLast: integer(env, 'REVISION_KEEP_LAST', 100, 1),
 			revisionDailyDays: integer(env, 'REVISION_DAILY_DAYS', 90, 0),
 			snapshotDir: snapshotDir,
-			snapshotKeep: snapshotKeep
+			snapshotKeep: snapshotKeep,
+			summaryModule: env.SUMMARY_MODULE?.trim() || DEFAULT_SUMMARY_MODULE
 		},
 		warnings: warnings
 	};

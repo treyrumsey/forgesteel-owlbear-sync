@@ -4,8 +4,8 @@ The `sync-steel` project (`5726124d-ee72-45a4-9063-d4e99ca74c30`), environment `
 
 | Service | ID | Builds | Address | Watch paths |
 |---|---|---|---|---|
-| `api` | `00e960ac-ff05-4d56-8b99-84789a92f9a9` | `server/Dockerfile` | `https://api-production-d612ac15.up.railway.app` (port 8080) | `server/**` |
-| `fs-web` | `3b8d58cf-ca8a-4cc1-b5cb-b5bb16deee92` | `Dockerfile.sync-steel` (the branded web app) | **`https://syncsteel.app`**, plus `https://fs-web-production-33b435c3.up.railway.app` (port 80) | `**`, `!/server/**`, `!/obr-extension/**`, `!/docs/**` |
+| `api` | `00e960ac-ff05-4d56-8b99-84789a92f9a9` | `server/Dockerfile` (with the hero summary bundle from `src/`) | `https://api-production-d612ac15.up.railway.app` (port 8080) | `server/**`, `src/**`, `vite.sync-steel-summary.config.ts`, `package-lock.json` |
+| `fs-web` | `3b8d58cf-ca8a-4cc1-b5cb-b5bb16deee92` | `Dockerfile.sync-steel` (the branded web app, and the Owlbear extension at `/owlbear/`) | **`https://syncsteel.app`**, plus `https://fs-web-production-33b435c3.up.railway.app` (port 80) | `**`, `!/server/**`, `!/docs/**` |
 
 Both use the health check `/healthz`, restart on failure (10 retries) and never sleep. The api's volume, variables and setup commands are in [server/README.md](../../server/README.md#railway).
 
@@ -29,6 +29,16 @@ railway environment edit --json <<'JSON'   # after Phase 2 merged: deploy main o
 {"services":{"3b8d58cf-ca8a-4cc1-b5cb-b5bb16deee92":{"source":{"repo":"treyrumsey/forgesteel-owlbear-sync","branch":"main","checkSuites":true}}}}
 JSON
 railway variable set "CORS_ORIGINS=https://syncsteel.app,https://fs-web-production-33b435c3.up.railway.app,http://localhost:5173,http://127.0.0.1:5173" --service api
+```
+
+**Phase 4 watch paths** (set them before Phase 4 merges, so its first deploy uses them): the api also watches `src/**`, so its hero summaries follow upstream's `HeroLogic`; fs-web also watches `obr-extension/**`, because it serves the extension.
+
+```bash
+railway environment edit --json <<'JSON'
+{"services":{
+	"00e960ac-ff05-4d56-8b99-84789a92f9a9":{"build":{"watchPatterns":["server/**","src/**","vite.sync-steel-summary.config.ts","package-lock.json"]}},
+	"3b8d58cf-ca8a-4cc1-b5cb-b5bb16deee92":{"build":{"watchPatterns":["**","!/server/**","!/docs/**"]}}}}
+JSON
 ```
 
 **`FORGESTEEL_SYNC_STEEL_API_HOST`** is read when the container starts: `nginx/env.sh` writes it into the built files in place of the placeholder. Changing it needs only a restart, not a rebuild.

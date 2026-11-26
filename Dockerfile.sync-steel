@@ -3,6 +3,7 @@
 # Upstream's own Dockerfile stays as it is; this one pins Node, honours .npmrc and builds with
 # vite.sync-steel.config.ts. At startup nginx/env.sh replaces FORGESTEEL_* placeholders, such as
 # FORGESTEEL_SYNC_STEEL_API_HOST, with the container's variables of the same names.
+# It also serves the Owlbear extension (obr-extension/) at /owlbear/, with nginx/sync-steel.conf.
 
 FROM node:26-slim AS builder
 WORKDIR /app
@@ -16,13 +17,28 @@ COPY public ./public
 COPY src ./src
 RUN npx vite build --config vite.sync-steel.config.ts
 
+# The Owlbear extension, built for /owlbear/ (obr-extension/vite.config.ts)
+FROM node:26-slim AS owlbear
+WORKDIR /app/obr-extension
+
+COPY obr-extension/package.json obr-extension/package-lock.json obr-extension/.npmrc ./
+RUN npm ci
+
+COPY obr-extension/index.html obr-extension/background.html obr-extension/picker.html obr-extension/vite.config.ts ./
+COPY obr-extension/public ./public
+COPY obr-extension/src ./src
+# CI type-checks it (npm run build); here there's no root node_modules for the tests' types
+RUN npx vite build
+
 # The Debian image, like upstream's: nginx/env.sh needs bash
 FROM nginx:stable
 
 RUN rm -rf /etc/nginx/conf.d/default.conf
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+# Upstream's config plus the extension's location (nginx.test.ts keeps them in step)
+COPY nginx/sync-steel.conf /etc/nginx/conf.d/default.conf
 
 COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=owlbear /app/obr-extension/dist /usr/share/nginx/html/owlbear
 
 COPY nginx/env.sh /docker-entrypoint.d/40-env.sh
 RUN chmod +x /docker-entrypoint.d/40-env.sh

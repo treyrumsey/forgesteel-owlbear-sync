@@ -90,6 +90,10 @@ export const authRoutes = (s: Services) => {
 		if (found.revoked_at) {
 			throw fail(401, REVOKED_MESSAGE, challenge);
 		}
+		// It only receives hero summaries over /live (Phase 4), and it's readable by anyone in the Owlbear room
+		if (found.kind === 'owlbear') {
+			throw fail(401, 'This is an Owlbear connection, not a device token', challenge);
+		}
 
 		const seat = s.rooms.getSeat(found.seat_id);
 		if (!seat) {

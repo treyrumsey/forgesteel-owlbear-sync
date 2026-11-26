@@ -7,6 +7,7 @@ import { type SeatDataStore, createSeatDataStore } from './store/seat-data.ts';
 import { type SecretKind, hashSecret } from './secrets.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import { HttpError } from './http.ts';
+import type { Summarize } from './summary.ts';
 
 export interface BodyLimits {
 	hero: number;
@@ -67,6 +68,8 @@ export interface ServiceOptions {
 	now?: () => number;
 	log?: (line: string) => void;
 	events?: EventBus;
+	// Hero summaries for the Owlbear extension; null turns Owlbear connections away
+	summarize?: Summarize | null;
 }
 
 export interface Services {
@@ -76,6 +79,7 @@ export interface Services {
 	homebrew: HomebrewStore;
 	seatData: SeatDataStore;
 	events: EventBus;
+	summarize: Summarize | null;
 	limiter: RateLimiter;
 	rateLimits: RateLimits;
 	bodyLimits: BodyLimits;
@@ -132,6 +136,7 @@ export const createServices = (options: ServiceOptions): Services => {
 		homebrew: createHomebrewStore(options.db, nowIso),
 		seatData: createSeatDataStore(options.db, nowIso),
 		events: options.events ?? createEventBus(),
+		summarize: options.summarize ?? null,
 		limiter: limiter,
 		rateLimits: { ...DEFAULT_RATE_LIMITS, ...options.rateLimits },
 		bodyLimits: { ...DEFAULT_BODY_LIMITS, ...options.bodyLimits },

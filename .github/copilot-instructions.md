@@ -21,6 +21,7 @@ This repo is a **public fork of [`andyaiken/forgesteel`](https://github.com/andy
   - CI (`.github/workflows/sync-steel-ci.yml`) runs all of these on pushes and PRs to `main`, and audits `server/` and `obr-extension/`.
 - **`npm audit` currently fails on upstream dev dependencies** (12 moderate). That's a known baseline; don't fix it in the fork. Lint, tsc and vitest must pass.
 - Run the pieces:
+  - `npx vite build --config vite.sync-steel-summary.config.ts` once, for the api's hero summaries (`server/build/hero-summary.mjs`);
   - `DEV_SEED=1 npm start --prefix server` (:8787, device tokens `dev-token` and `dev-gm-token`, data in `server/.data/`);
   - `npm start` (fork, :5173);
   - `npm run dev --prefix obr-extension` (:5174).
@@ -28,7 +29,7 @@ This repo is a **public fork of [`andyaiken/forgesteel`](https://github.com/andy
   See `docs/sync-steel/SETUP.md`.
 - **Deployment:** the Railway project `sync-steel` has two services, both deploying `main` with "Wait for CI":
   - `api`: `server/Dockerfile`, at `https://api-production-d612ac15.up.railway.app`;
-  - `fs-web`: `Dockerfile.sync-steel` (the branded web app), at `https://syncsteel.app`.
+  - `fs-web`: `Dockerfile.sync-steel` (the branded web app, plus the Owlbear extension at `/owlbear/`), at `https://syncsteel.app`.
 
   IDs and settings are in `docs/sync-steel/SETUP.md` and `docs/sync-steel/railway.md`. Run `. ~/.railway/env` first in agent shells.
 - **Branded build:** `npx vite build --config vite.sync-steel.config.ts`. `npm start` stays unbranded and uses the api at `http://localhost:8787`.
@@ -46,14 +47,14 @@ This repo is a **public fork of [`andyaiken/forgesteel`](https://github.com/andy
 - **Layout:**
   ```
   src/sync-steel/     Forge Steel sync module (new files only)
-  server/             backend (Hono + node:sqlite: Warehouse-compatible API, rooms, revisions, three-way merge, live WebSocket hub)
-  obr-extension/      Owlbear companion extension
+  server/             backend (Hono + node:sqlite: Warehouse-compatible API, rooms, revisions, three-way merge, live WebSocket hub, hero summaries)
+  obr-extension/      Owlbear companion extension (Forge Steel → Draw Steel Tools tokens)
   docs/sync-steel/    plan, report, decisions, spike results, how-to, railway
   ```
 - **`server/` and `obr-extension/` are standalone npm packages**, each with its own `package.json`, lockfile and `.npmrc`.
   - Never add their dependencies to the root `package.json` (an upstream file).
   - Always `cd` into the package, or pass `--prefix`, before `npm install`. Without a `package.json` there, npm walks up to the root.
-  - Their tests run under the root Vitest. `obr-extension/` tests must not import package-only dependencies (`obr-extension/src/dst-token.ts` imports no SDK). Server tests may use the server's own dependencies (Hono), so `npm ci --prefix server` comes before `npm run check`.
+  - Their tests run under the root Vitest. `obr-extension/` tests must not import package-only dependencies: only the page scripts (`background.ts`, `popover.ts`, `picker.ts`, `spike.ts`) import the Owlbear SDK. Server tests may use the server's own dependencies (Hono), so `npm ci --prefix server` comes before `npm run check`.
   - Avoid packages that compile on install; `ignore-scripts=true` blocks their build scripts.
 - **Server runtime code runs as plain `node src/main.ts`** (Node type stripping), so it needs:
   - only erasable TypeScript: no enums, parameter properties or namespaces;

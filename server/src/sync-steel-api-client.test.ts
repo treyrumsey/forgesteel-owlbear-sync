@@ -114,6 +114,21 @@ describe('SyncSteelDeviceApi GM tools', () => {
 		await expect(rooms.lookup(code)).resolves.toMatchObject({ room: { name: 'Thursday group' } });
 	});
 
+	it('creates the Owlbear token, which shows in the GM seat\'s devices; a new one disconnects the old', async () => {
+		const { created, gm } = await setUp();
+
+		const first = await gm.createOwlbearToken();
+		const second = await gm.createOwlbearToken();
+
+		expect(first.token).toMatch(/^sst_/);
+		const devices = (await gm.gmRoom()).seats.find(s => s.id === created.seat.id)?.devices ?? [];
+		const owlbear = devices.filter(d => d.kind === 'owlbear');
+		expect(owlbear.map(d => ({ id: d.id, label: d.label, active: d.revokedAt === null }))).toEqual([
+			{ id: first.deviceId, label: 'Owlbear', active: false },
+			{ id: second.deviceId, label: 'Owlbear', active: true }
+		]);
+	});
+
 	it('renews an expired access token', async () => {
 		const { gm } = await setUp();
 		await gm.gmRoom();

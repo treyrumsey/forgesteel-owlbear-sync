@@ -93,3 +93,46 @@ textarea {
 	border-radius: 4px;
 	background: color-mix(in srgb, orange 25%, transparent);
 }
+
+.note {
+	opacity: 0.75;
+	margin: 6px 0;
+}
+
+.ok {
+	color: #2e7d32;
+}
+
+.bad {
+	color: #c62828;
+}
+
+ul {
+	margin: 4px 0;
+	padding-left: 18px;
+}
+
+.choices {
+	list-style: none;
+	padding: 0;
+	max-height: 360px;
+	overflow-y: auto;
+}
+
+.choices button {
+	display: block;
+	width: 100%;
+	text-align: left;
+	margin: 3px 0;
+	padding: 6px 8px;
+}
+
+.choices .match {
+	font-weight: 600;
+}
+
+.choices .detail {
+	display: block;
+	font-weight: normal;
+	opacity: 0.7;
+}

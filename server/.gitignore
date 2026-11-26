@@ -1,2 +1,4 @@
 # The local development database (DATABASE_PATH defaults to server/.data/dev.db)
 .data/
+# The hero summary bundle (vite.sync-steel-summary.config.ts)
+build/

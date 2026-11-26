@@ -4,6 +4,7 @@ import { GmRoom, SyncSteelDeviceApi } from '@/sync-steel/api/sync-steel-api';
 import { useCallback, useEffect, useState } from 'react';
 import { Expander } from '@/components/controls/expander/expander';
 import { HeaderText } from '@/components/controls/header-text/header-text';
+import { OwlbearConnectionLogic } from '@/sync-steel/logic/owlbear-connection';
 import { SyncSteelFiles } from '@/sync-steel/logic/sync-steel-files';
 
 interface Props {
@@ -20,6 +21,7 @@ export const SyncSteelGmPanel = (props: Props) => {
 	const [ room, setRoom ] = useState<GmRoom | null>(null);
 	const [ snapshots, setSnapshots ] = useState<string[]>([]);
 	const [ newCode, setNewCode ] = useState<string | null>(null);
+	const [ owlbearConnection, setOwlbearConnection ] = useState<string | null>(null);
 	const [ busy, setBusy ] = useState<string | null>(null);
 	const [ error, setError ] = useState<string | null>(null);
 
@@ -101,6 +103,12 @@ export const SyncSteelGmPanel = (props: Props) => {
 		await refresh();
 	});
 
+	const connectOwlbear = () => run('owlbear', async () => {
+		const created = await api.createOwlbearToken();
+		setOwlbearConnection(OwlbearConnectionLogic.encode({ api: api.getHost(), token: created.token }));
+		await refresh();
+	});
+
 	const renameSeat = (seatId: string, name: string) => run(`rename-${seatId}`, async () => {
 		if (name.trim()) {
 			await api.renameSeat(seatId, name.trim());
@@ -123,6 +131,15 @@ export const SyncSteelGmPanel = (props: Props) => {
 
 	const days = SyncSteelFiles.daysSince(room.room.lastExportAt, Date.now());
 	const exportOverdue = (days === null) || (days > EXPORT_REMINDER_DAYS);
+	const owlbear = room.seats.flatMap(seat => seat.devices).find(device => (device.kind === 'owlbear') && !device.revokedAt);
+	const manifestUrl = OwlbearConnectionLogic.getManifestUrl(window.location.origin);
+	let owlbearStatus = 'Not connected';
+	if (owlbear) {
+		owlbearStatus = owlbear.lastUsedAt
+			? `Connected; Owlbear last connected ${SyncSteelFiles.formatDate(owlbear.lastUsedAt)}`
+			: 'Made, but Owlbear hasn\'t connected with it yet';
+	}
+	const connectButton = <Button loading={busy === 'owlbear'} onClick={owlbear ? undefined : connectOwlbear}>{owlbear ? 'New Owlbear connection' : 'Connect Owlbear'}</Button>;
 
 	return (
 		<Space orientation='vertical' style={{ width: '100%' }} size='middle'>
@@ -181,6 +198,43 @@ export const SyncSteelGmPanel = (props: Props) => {
 					<div className='ds-text dimmed-text'>Last changed: {SyncSteelFiles.formatDate(room.room.codeRotatedAt ?? room.room.createdAt)}</div>
 				</Space>
 			</Expander>
+			<Expander title='Owlbear'>
+				<Space orientation='vertical' style={{ width: '100%' }}>
+					<div className='ds-text'>
+						Shows each hero's stamina, recoveries, surges, heroic resource and conditions on their Draw Steel Tools token in your Owlbear room.
+					</div>
+					<div className='ds-text'>
+						1. In Owlbear, add a custom extension with this URL: <Typography.Text className='sync-steel-secret' copyable={true}>{manifestUrl}</Typography.Text>
+					</div>
+					<div className='ds-text'>
+						2. Make a connection below, and paste it into the Sync Steel extension's <b>Connect</b> box in Owlbear, as the GM.
+					</div>
+					<div className='ds-text'>
+						3. Right-click each hero's token and choose <b>Link to hero</b>.
+					</div>
+					{
+						owlbearConnection ?
+							<Alert
+								type='success'
+								showIcon={true}
+								title={'Paste this into the extension now: it can\'t be shown again'}
+								description={<Typography.Text className='sync-steel-secret' copyable={true}>{owlbearConnection}</Typography.Text>}
+								closable={{ onClose: () => setOwlbearConnection(null) }}
+							/>
+							: null
+					}
+					{
+						owlbear ?
+							<Popconfirm title='Make a new Owlbear connection?' description='The current one is disconnected, so paste the new one into the extension.' okText='New connection' onConfirm={connectOwlbear}>
+								{connectButton}
+							</Popconfirm>
+							: connectButton
+					}
+					<div className='ds-text dimmed-text'>
+						{owlbearStatus}
+					</div>
+				</Space>
+			</Expander>
 			<Expander title='Seats and devices' expandedByDefault={true}>
 				<Space orientation='vertical' style={{ width: '100%' }} size='middle'>
 					<div className='ds-text'>
@@ -225,6 +279,7 @@ export const SyncSteelGmPanel = (props: Props) => {
 												<Flex gap={6} align='center'>
 													<span className={device.revokedAt ? 'sync-steel-revoked' : ''}>{device.label}</span>
 													{device.current ? <Tag color='blue'>this device</Tag> : null}
+													{device.kind === 'owlbear' ? <Tag color='purple'>Owlbear</Tag> : null}
 													{device.revokedAt ? <Tag>disconnected</Tag> : null}
 												</Flex>
 												<span className='ds-text dimmed-text'>Last used: {SyncSteelFiles.formatDate(device.lastUsedAt)}</span>
