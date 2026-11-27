@@ -2,7 +2,7 @@ import { type AppOptions, createApp, listen } from './app.ts';
 import { HeroSummaryLogic } from '@/sync-steel/logic/hero-summary-logic';
 import { migrate } from './db/migrate.ts';
 import { openDatabase } from './db/database.ts';
-import { summarizerFrom } from './summary.ts';
+import { summaryToolsFrom } from './summary.ts';
 
 // Shared by the server's tests: a real HTTP server on a free port, backed by an in-memory database
 
@@ -20,7 +20,7 @@ export const startTestServer = async (options: Partial<AppOptions> = {}) => {
 		now: () => clock.now,
 		log: line => logLines.push(line),
 		// The source, which Vitest can run; production loads the bundle (summary.ts)
-		summarize: summarizerFrom({ HeroSummaryLogic: HeroSummaryLogic }),
+		summaries: summaryToolsFrom({ HeroSummaryLogic: HeroSummaryLogic }),
 		...options
 	});
 	const { server, port } = await listen(app, 0, '127.0.0.1');

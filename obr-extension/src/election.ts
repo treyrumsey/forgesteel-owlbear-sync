@@ -6,6 +6,9 @@ export interface PartyMember {
 	connectionId: string;
 	role: 'GM' | 'PLAYER';
 	name: string;
+	// The Owlbear user (Player.id): the same on each of a person's connections, and what an item's
+	// lastModifiedUserId names
+	playerId?: string;
 }
 
 export const electWriter = (members: PartyMember[]): PartyMember | null => {

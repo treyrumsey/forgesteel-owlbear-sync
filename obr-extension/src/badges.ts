@@ -31,6 +31,8 @@ const COLORS: Record<string, string> = {
 	Weakened: '#455a64'
 };
 const OTHER_COLOR = '#37474f';
+
+export const conditionColor = (type: string) => COLORS[type] ?? OTHER_COLOR;
 const MAX_TEXT = 24;
 
 const ENDS: Record<string, string> = {
@@ -54,7 +56,7 @@ export const layoutBadges = (tokenId: string, conditions: SummaryCondition[], bo
 		id: `${tokenId}-sync-steel-badge-${index}`,
 		tokenId: tokenId,
 		text: conditionLabel(condition),
-		color: COLORS[condition.type] ?? OTHER_COLOR,
+		color: conditionColor(condition.type),
 		position: { x: bounds.max.x + Math.round(fontSize * 0.3), y: bounds.min.y + (index * step) },
 		fontSize: fontSize
 	}));

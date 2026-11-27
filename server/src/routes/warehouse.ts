@@ -18,7 +18,7 @@ export const limitBody = (maxSize: number) => bodyLimit({
 // The server's revision travels inside the hero, so a later save says which revision it was based on
 export const stampHero = (data: JsonObject, rev: number) => ({ ...data, _syncSteel: { rev: rev } });
 
-const describeSave = (id: string, data: JsonObject, result: SaveHeroResult) => {
+export const describeSave = (id: string, data: JsonObject, result: SaveHeroResult) => {
 	const label = `hero ${id} "${typeof data.name === 'string' ? data.name : ''}"`;
 	const bases = `stamp rev ${result.stampRev ?? 'none'}, session wrote rev ${result.sessionRev ?? 'none'}, base rev ${result.baseRev ?? 'none'}`;
 	const notes = [ result.merged ? 'merged' : null, result.conflicts.length > 0 ? `this save won ${result.conflicts.join(', ')}` : null ].filter(note => note !== null);

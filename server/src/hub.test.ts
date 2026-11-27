@@ -1,4 +1,4 @@
-import { HubClient, type SocketLike, testConnection } from '../../obr-extension/src/hub-client.ts';
+import { HubClient, type PatchAnswer, type SocketLike, testConnection } from '../../obr-extension/src/hub-client.ts';
 import { TEST_ORIGIN, type TestServer, startTestServer } from './test-support.ts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FactoryLogic } from '@/logic/factory-logic';
@@ -367,9 +367,189 @@ describe('Owlbear on the live sync hub', () => {
 	});
 });
 
+describe('Owlbear token edits (patches)', () => {
+	let owlbear: string;
+	let socket: Awaited<ReturnType<typeof open>>;
+	let edits = 0;
+
+	beforeAll(async () => {
+		const gmAccess = (await t.connect(room.deviceToken)).access_token;
+		owlbear = (await (await t.post('/gm/owlbear', {}, gmAccess)).json() as { token: string }).token;
+		socket = await open(owlbear);
+		await socket.next('synced');
+	});
+
+	afterAll(() => {
+		socket.close();
+	});
+
+	// Sends a patch and resolves with its answer
+	const send = async (patch: Record<string, unknown>, on = socket) => {
+		const editId = (patch.editId as string | undefined) ?? `edit-${++edits}`;
+		const from = on.messages.length;
+		on.ws.send(JSON.stringify({ type: 'patch', editId: editId, ...patch }));
+		for (;;) {
+			const answer = on.messages.slice(from).find(message => ((message.type === 'ack') || (message.type === 'reject')) && (message.editId === editId));
+			if (answer) {
+				return answer;
+			}
+			await on.next('ack', on.messages.length).catch(() => undefined);
+		}
+	};
+
+	const stored = async (heroId: string) => {
+		const access = (await t.connect(room.deviceToken)).access_token;
+		const response = await t.call(`/data/forgesteel-heroes/${heroId}`, access);
+		return heroOf({ type: 'hero', hero: (await response.json() as { data: unknown }).data });
+	};
+
+	it('applies a token edit, acknowledges it, and pushes the new summary and the whole hero', async () => {
+		await save(alice.deviceToken, furyHero('patch-1', 'Kalla'));
+		await wait(150);
+		const player = await open(alice.deviceToken, { 'patch-1': 1 });
+		await player.next('welcome');
+		await wait(50);
+		const from = socket.messages.length;
+		const playerFrom = player.messages.length;
+
+		const answer = await send({ heroId: 'patch-1', baseRev: 1, values: { stamina: 16, temporaryStamina: 2, surges: 1 } });
+
+		expect(answer).toEqual({ type: 'ack', editId: answer.editId, rev: 2, summaryRev: 2 });
+		await socket.next('summary', from);
+		expect(summariesFor(socket.messages, 'patch-1', from)).toEqual([ expect.objectContaining({ rev: 2, stamina: 16 }) ]);
+		const pushed = heroOf(await player.next('hero', playerFrom));
+		expect(pushed._syncSteel.rev).toBe(2);
+		expect(pushed.state).toMatchObject({ staminaDamage: 5, staminaTemp: 2, surges: 1 });
+		expect(t.logLines.some(line => line.includes(`Owlbear edit ${answer.editId as string}: hero patch-1 "Kalla" rev 1 -> 2`))).toBe(true);
+		player.close();
+	});
+
+	it('combines a token edit with a change Forge Steel made since the token was synced', async () => {
+		const hero = furyHero('patch-2', 'Vex');
+		const access = await save(alice.deviceToken, hero);
+		// Forge Steel: 5 damage, at rev 2. The token still shows rev 1, and takes 3 damage there.
+		hero.state.staminaDamage = 5;
+		expect((await t.putHero(access, { ...hero, _syncSteel: { rev: 1 } })).status).toBe(204);
+
+		const answer = await send({ heroId: 'patch-2', baseRev: 1, values: { stamina: 18 } });
+
+		expect(answer).toMatchObject({ type: 'ack', rev: 3, summaryRev: 3 });
+		expect((await stored('patch-2')).state.staminaDamage).toBe(8);
+	});
+
+	it('adds and removes conditions by id, merged with Forge Steel\'s', async () => {
+		const hero = furyHero('patch-3', 'Rook') as ReturnType<typeof furyHero> & { state: { conditions: unknown[] } };
+		hero.state.conditions = [ { id: 'fs-1', type: 'Bleeding', text: '', ends: 'Save ends' } ];
+		await save(alice.deviceToken, hero);
+
+		const slowed = { id: 'obr-1', type: 'Slowed', text: '', ends: 'End of turn' };
+		expect(await send({ heroId: 'patch-3', baseRev: 1, conditions: { add: [ slowed ] } })).toMatchObject({ type: 'ack', rev: 2 });
+		expect(await send({ heroId: 'patch-3', baseRev: 2, conditions: { remove: [ 'fs-1' ] } })).toMatchObject({ type: 'ack', rev: 3 });
+
+		expect((await stored('patch-3')).state.conditions).toEqual([ slowed ]);
+	});
+
+	it('applies an edit once, however many clients send it', async () => {
+		await save(alice.deviceToken, furyHero('patch-4', 'Moss'));
+		const tv = await open(owlbear);
+		await tv.next('synced');
+		const edit = { editId: 'token-9:2026-11-26T12:00:00.000Z', heroId: 'patch-4', baseRev: 1, values: { stamina: 11 } };
+
+		const first = await send(edit);
+		const second = await send(edit, tv);
+
+		expect(second).toEqual(first);
+		const stamped = await stored('patch-4');
+		expect(stamped._syncSteel.rev).toBe(2);
+		expect(stamped.state.staminaDamage).toBe(10);
+		tv.close();
+	});
+
+	it('acknowledges an edit that changes nothing without a new revision', async () => {
+		await save(alice.deviceToken, furyHero('patch-5', 'Wren'));
+
+		expect(await send({ heroId: 'patch-5', baseRev: 1, values: { stamina: 21 } })).toMatchObject({ type: 'ack', rev: 1, summaryRev: 1 });
+	});
+
+	it.each([
+		[ 'a value that isn\'t a number', { heroId: 'patch-1', baseRev: 2, values: { stamina: 'lots' } }, 'invalid' ],
+		[ 'an edit with no changes', { heroId: 'patch-1', baseRev: 2, values: {} }, 'invalid' ],
+		[ 'an unknown condition', { heroId: 'patch-1', baseRev: 2, conditions: { add: [ { id: 'x', type: 'Sleepy', text: '', ends: 'Save ends' } ] } }, 'invalid' ],
+		[ 'an unknown hero', { heroId: 'nobody', baseRev: 1, values: { stamina: 1 } }, 'unknown-hero' ],
+		[ 'a revision the server doesn\'t have', { heroId: 'patch-1', baseRev: 99, values: { stamina: 1 } }, 'base-gone' ]
+	])('rejects %s', async (_name, patch, reason) => {
+		expect(await send(patch)).toMatchObject({ type: 'reject', reason: reason });
+	});
+
+	it('ignores patches from Forge Steel devices', async () => {
+		const device = await open(alice.deviceToken);
+		await device.next('welcome');
+
+		device.ws.send(JSON.stringify({ type: 'patch', editId: 'from-fs', heroId: 'patch-1', baseRev: 2, values: { stamina: 1 } }));
+		await wait(150);
+
+		expect(device.messages.filter(message => (message.type === 'ack') || (message.type === 'reject'))).toEqual([]);
+		expect((await stored('patch-1')).state.staminaDamage).toBe(5);
+		device.close();
+	});
+
+	it('works with the extension\'s own hub client, which waits for the catch-up before sending', async () => {
+		await save(alice.deviceToken, furyHero('patch-7', 'Fern'));
+		const answers: PatchAnswer[] = [];
+		const client = new HubClient({
+			connection: { api: t.base, token: owlbear },
+			createSocket: url => new WebSocket(url, { headers: { Origin: TEST_ORIGIN } }) as unknown as SocketLike,
+			onSummary: () => undefined,
+			onDeleted: () => undefined,
+			onSynced: () => undefined,
+			onStatus: () => undefined,
+			onAnswer: answer => answers.push(answer)
+		});
+
+		// Before it has connected: queued until the hub has caught it up
+		client.start();
+		client.patch({ heroId: 'patch-7', baseRev: 1, editId: 'client-1', values: { recoveries: 6 } });
+		client.patch({ heroId: 'patch-7', baseRev: 1, editId: 'client-2', values: { stamina: 'x' as unknown as number } });
+		while (answers.length < 2) {
+			await wait(20);
+		}
+		client.stop();
+
+		expect(answers).toEqual([
+			{ type: 'ack', editId: 'client-1', rev: 2, summaryRev: 2 },
+			{ type: 'reject', editId: 'client-2', reason: 'invalid' }
+		]);
+		expect((await stored('patch-7')).state.recoveriesUsed).toBe(4);
+		// Stopped: a new patch is given up on at once
+		client.patch({ heroId: 'patch-7', baseRev: 2, editId: 'client-3', values: { surges: 1 } });
+		expect(answers[2]).toEqual({ type: 'reject', editId: 'client-3', reason: 'disconnected' });
+	});
+
+	it('gives a summary the revision at which it last changed, so every client agrees', async () => {
+		const hero = furyHero('patch-6', 'Ash');
+		const access = await save(alice.deviceToken, hero);
+		await wait(150);
+		hero.state.notes = 'Owes Bob';
+		expect((await t.putHero(access, hero)).status).toBe(204);
+		await wait(150);
+
+		const late = await open(owlbear);
+		await late.next('synced');
+		expect(summariesFor(late.messages, 'patch-6')).toEqual([ expect.objectContaining({ rev: 1 }) ]);
+		const caughtUp = await open(owlbear, { 'patch-6': 1 });
+		await caughtUp.next('synced');
+		expect(summariesFor(caughtUp.messages, 'patch-6')).toEqual([]);
+		// A token synced at rev 1 can still be edited against it
+		expect(await send({ heroId: 'patch-6', baseRev: 1, values: { surges: 2 } })).toMatchObject({ type: 'ack', rev: 3, summaryRev: 3 });
+		expect((await stored('patch-6')).state).toMatchObject({ notes: 'Owes Bob', surges: 2 });
+		late.close();
+		caughtUp.close();
+	});
+});
+
 describe('Owlbear on a server without the summary bundle', () => {
 	it('turns the Owlbear extension away', async () => {
-		const bare = await startTestServer({ summarize: null });
+		const bare = await startTestServer({ summaries: null });
 		const created = await bare.createRoom();
 		const access = (await bare.connect(created.deviceToken)).access_token;
 		const token = (await (await bare.post('/gm/owlbear', {}, access)).json() as { token: string }).token;
