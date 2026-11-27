@@ -1,0 +1,239 @@
+// Sync Steel's live copy of upstream's HeroInventoryModal (src/components/modals/hero-inventory/hero-inventory-modal.tsx).
+// Made by src/sync-steel/panels/live-copy.ts: don't edit it by hand. Regenerate it with
+// node scripts/sync-steel/update-live-panels.ts when upstream changes the original.
+import { Alert, Button, Divider, Drawer, Space } from 'antd';
+import { CaretDownOutlined, CaretUpOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons';
+import { ButtonGroup } from '@/components/controls/button-group/button-group';
+import { Collections } from '@/utils/collections';
+import { DangerButton } from '@/components/controls/danger-button/danger-button';
+import { Empty } from '@/components/controls/empty/empty';
+import { Expander } from '@/components/controls/expander/expander';
+import { FeatureType } from '@/enums/feature-type';
+import { HeaderText } from '@/components/controls/header-text/header-text';
+import { Hero } from '@/models/hero';
+import { HeroLogic } from '@/logic/hero-logic';
+import { ImportCodeModal } from '@/components/modals/import-code/import-code-modal';
+import { Item } from '@/models/item';
+import { ItemPanel } from '@/components/panels/elements/item-panel/item-panel';
+import { ItemSelectModal } from '@/components/modals/select/item-select/item-select-modal';
+import { ItemType } from '@/enums/item-type';
+import { MarkdownEditor } from '@/components/controls/markdown/markdown';
+import { Modal } from '@/components/modals/modal/modal';
+import { PanelMode } from '@/enums/panel-mode';
+import { Sourcebook } from '@/models/sourcebook';
+import { Utils } from '@/utils/utils';
+// Sync Steel: live sync's remote changes
+import { useRemoteHero } from '@/sync-steel/live/remote-heroes';
+import { useState } from 'react';
+
+// Sync Steel: upstream's stylesheet, from its own folder
+import '@/components/modals/hero-inventory/hero-inventory-modal.scss';
+
+interface Props {
+	hero: Hero;
+	sourcebooks: Sourcebook[];
+	onClose: () => void;
+	onChange: (hero: Hero) => void;
+	onCustomize: () => void;
+}
+
+// Sync Steel: renamed from HeroInventoryModal
+export const LiveHeroInventoryModal = (props: Props) => {
+	const [ hero, setHero ] = useState<Hero>(Utils.copy(props.hero));
+	// Sync Steel: follow changes made elsewhere (another device, Owlbear) while this is open
+	const [ remoteChanges, setRemoteChanges ] = useState<number>(0);
+	useRemoteHero(props.hero.id, remote => {
+		const touched = ([ 'inventory', 'inventoryText' ] as const).some(field => JSON.stringify(remote.state[field]) !== JSON.stringify(hero.state[field]));
+		setHero(Utils.copy(remote));
+		if (touched) {
+			setRemoteChanges(count => count + 1);
+		}
+	});
+	const [ shopVisible, setShopVisible ] = useState<boolean>(false);
+	const [ importVisible, setImportVisible ] = useState<boolean>(false);
+
+	const addItem = (item: Item) => {
+		const itemCopy = Utils.copy(item);
+		itemCopy.id = Utils.guid();
+
+		const copy = Utils.copy(hero);
+		copy.state.inventory.push(itemCopy);
+		setHero(copy);
+		setShopVisible(false);
+		props.onChange(copy);
+	};
+
+	const importItem = (item: Item) => {
+		addItem(item);
+		setImportVisible(false);
+	};
+
+	const changeItem = (item: Item) => {
+		const copy = Utils.copy(hero);
+		const index = copy.state.inventory.findIndex(i => i.id === item.id);
+		copy.state.inventory[index] = item;
+		setHero(copy);
+		props.onChange(copy);
+	};
+
+	const moveItem = (item: Item, direction: 'up' | 'down') => {
+		const copy = Utils.copy(hero);
+		const index = copy.state.inventory.findIndex(i => i.id === item.id);
+		copy.state.inventory = Collections.move(copy.state.inventory, index, direction);
+		setHero(copy);
+		props.onChange(copy);
+	};
+
+	const deleteItem = (item: Item) => {
+		const copy = Utils.copy(hero);
+		copy.state.inventory = copy.state.inventory.filter(i => i.id !== item.id);
+		setHero(copy);
+		props.onChange(copy);
+	};
+
+	const setInventoryText = (value: string) => {
+		const copy = Utils.copy(hero);
+		copy.state.inventoryText = value;
+		setHero(copy);
+		props.onChange(copy);
+	};
+
+	const items = [
+		...hero.state.inventory.map(i => ({ item: i, source: 'inventory' })),
+		...HeroLogic.getFeatures(hero)
+			.map(f => f.feature)
+			.filter(f => f.type === FeatureType.ItemChoice)
+			.flatMap(f => f.data.selected)
+			.map(i => ({ item: i, source: 'feature' }))
+	];
+
+	let warning = null;
+	if (items.filter(i => [ ItemType.Leveled, ItemType.LeveledArmor, ItemType.LeveledImplement, ItemType.LeveledWeapon ].includes(i.item.type)).length > 3) {
+		warning = (
+			<Alert
+				type='warning'
+				showIcon={true}
+				title='You can only use 3 leveled items at a time.'
+			/>
+		);
+	}
+
+	return (
+		<Modal
+			content={
+				<div className='hero-inventory-modal'>
+					{/* Sync Steel: remount this on a remote change, since its panels copy what they show when they mount */}
+					<Space key={remoteChanges} orientation='vertical' style={{ width: '100%', paddingBottom: '20px' }}>
+						<HeaderText
+							extra={
+								<ButtonGroup
+									buttons={[
+										{ type: 'button', icon: <PlusOutlined />, tooltip: 'Add an item', onClick: () => setShopVisible(true) },
+										{ type: 'button', icon: <DownloadOutlined />, tooltip: 'Import a code', onClick: () => setImportVisible(true) }
+									]}
+								/>
+							}
+						>
+							Inventory
+						</HeaderText>
+						{warning}
+						{
+							items.map(i => {
+								switch (i.source) {
+									case 'inventory':
+										return (
+											<Expander
+												key={i.item.id}
+												title={i.item.count === 1 ? i.item.name : `${i.item.name} (x${i.item.count})`}
+												tags={[ i.item.type ]}
+												extra={[
+													<Button key='up' type='text' title='Move Up' icon={<CaretUpOutlined />} onClick={e => { e.stopPropagation(); moveItem(i.item, 'up'); }} />,
+													<Button key='down' type='text' title='Move Down' icon={<CaretDownOutlined />} onClick={e => { e.stopPropagation(); moveItem(i.item, 'down'); }} />,
+													<DangerButton key='delete' mode='clear' onConfirm={e => { e.stopPropagation(); deleteItem(i.item); }} />
+												]}
+											>
+												<ItemPanel
+													item={i.item}
+													wielder={hero}
+													sourcebooks={props.sourcebooks}
+													mode={PanelMode.Full}
+													onChange={changeItem}
+												/>
+											</Expander>
+										);
+									case 'feature':
+										return (
+											<Expander
+												key={i.item.id}
+												title={i.item.count === 1 ? i.item.name : `${i.item.name} (x${i.item.count})`}
+												tags={[ i.item.type ]}
+											>
+												<ItemPanel
+													item={i.item}
+													wielder={hero}
+													sourcebooks={props.sourcebooks}
+													mode={PanelMode.Full}
+												/>
+											</Expander>
+										);
+								}
+							})
+						}
+						{
+							items.length === 0 ?
+								<Empty text='Your inventory is empty.' />
+								: null
+						}
+						<Divider />
+						<MarkdownEditor value={hero.state.inventoryText} onChange={setInventoryText} />
+					</Space>
+					<Drawer open={shopVisible} onClose={() => setShopVisible(false)} closeIcon={null} size={500}>
+						{
+							shopVisible ?
+								<ItemSelectModal
+									types={[
+										ItemType.Artifact,
+										ItemType.Consumable1st,
+										ItemType.Consumable2nd,
+										ItemType.Consumable3rd,
+										ItemType.Consumable4th,
+										ItemType.ImbuedArmor,
+										ItemType.ImbuedImplement,
+										ItemType.ImbuedWeapon,
+										ItemType.Leveled,
+										ItemType.LeveledArmor,
+										ItemType.LeveledImplement,
+										ItemType.LeveledWeapon,
+										ItemType.Trinket1st,
+										ItemType.Trinket2nd,
+										ItemType.Trinket3rd,
+										ItemType.Trinket4th
+									]}
+									sourcebooks={props.sourcebooks}
+									hero={hero}
+									onSelect={addItem}
+									onCustomize={props.onCustomize}
+									onClose={() => setShopVisible(false)}
+								/>
+								: null
+						}
+					</Drawer>
+					<Drawer open={importVisible} onClose={() => setImportVisible(false)} closeIcon={null} size={500}>
+						{
+							importVisible ?
+								<ImportCodeModal
+									kind='item'
+									hero={hero}
+									sourcebooks={props.sourcebooks}
+									onImport={element => importItem(element as Item)}
+									onClose={() => setImportVisible(false)}
+								/>
+								: null
+						}
+					</Drawer>
+				</div>
+			}
+			onClose={props.onClose}
+		/>
+	);
+};

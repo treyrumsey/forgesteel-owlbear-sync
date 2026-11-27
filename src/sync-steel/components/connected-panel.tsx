@@ -3,6 +3,7 @@ import { Me, SyncSteelApiError, SyncSteelDeviceApi } from '@/sync-steel/api/sync
 import { useEffect, useMemo, useState } from 'react';
 import { HeaderText } from '@/components/controls/header-text/header-text';
 import { SyncSteelGmPanel } from '@/sync-steel/components/gm-panel';
+import { SyncSteelLivePanelsSetting } from '@/sync-steel/components/live-panels-setting';
 import { useNavigation } from '@/hooks/use-navigation';
 
 interface Props {
@@ -90,6 +91,7 @@ export const SyncSteelConnectedPanel = (props: Props) => {
 					{disconnectButton}
 				</Space>
 			</Space>
+			<SyncSteelLivePanelsSetting />
 			{me.seat.isGm ? <SyncSteelGmPanel api={api} /> : null}
 		</Space>
 	);

@@ -1,0 +1,690 @@
+// Sync Steel's live copy of upstream's HeroResourcesModal (src/components/modals/hero-resources/hero-resources-modal.tsx).
+// Made by src/sync-steel/panels/live-copy.ts: don't edit it by hand. Regenerate it with
+// node scripts/sync-steel/update-live-panels.ts when upstream changes the original.
+import { Alert, Button, Drawer, Flex, Progress, Space } from 'antd';
+import { ArrowUpOutlined } from '@ant-design/icons';
+import { Characteristic } from '@/enums/characteristic';
+import { Collections } from '@/utils/collections';
+import { DiceTray } from '@/components/panels/dice-tray/dice-tray';
+import { DieResult } from '@/models/die-result';
+import { FactoryLogic } from '@/logic/factory-logic';
+import { FeatureType } from '@/enums/feature-type';
+import { Field } from '@/components/controls/field/field';
+import { FollowerType } from '@/enums/follower-type';
+import { Format } from '@/utils/format';
+import { HeaderText } from '@/components/controls/header-text/header-text';
+import { Hero } from '@/models/hero';
+import { HeroLevelUpModal } from '@/components/modals/hero-level-up/hero-level-up-modal';
+import { HeroLogic } from '@/logic/hero-logic';
+import { Modal } from '@/components/modals/modal/modal';
+import { Monster } from '@/models/monster';
+import { NumberSpin } from '@/components/controls/number-spin/number-spin';
+import { Pill } from '@/components/controls/pill/pill';
+import { Random } from '@/utils/random';
+import { ResourceGainFrequency } from '@/enums/resource-gain-frequency';
+import { RetainerSelectModal } from '@/components/modals/select/retainer-select/retainer-select-modal';
+import { RollLogic } from '@/logic/roll-logic';
+import { Sourcebook } from '@/models/sourcebook';
+import { SourcebookLogic } from '@/logic/sourcebook-logic';
+import { Utils } from '@/utils/utils';
+import { useOptions } from '@/contexts/data-context';
+// Sync Steel: live sync's remote changes
+import { useRemoteHero } from '@/sync-steel/live/remote-heroes';
+import { useState } from 'react';
+
+// Sync Steel: upstream's stylesheet, from its own folder
+import '@/components/modals/hero-resources/hero-resources-modal.scss';
+
+interface Expression {
+	kind: 'resource' | 'surge';
+	resourceID: string;
+	resourceName: string;
+	tag: string;
+	gainIndex: number;
+	throws: number;
+	sides: number;
+	constant: number;
+	result: number | null;
+}
+
+interface Props {
+	hero: Hero;
+	sourcebooks: Sourcebook[];
+	onClose: () => void;
+	onChange: (hero: Hero) => void;
+}
+
+// Sync Steel: renamed from HeroResourcesModal
+export const LiveHeroResourcesModal = (props: Props) => {
+	const [ hero, setHero ] = useState<Hero>(Utils.copy(props.hero));
+	// Sync Steel: follow changes made elsewhere (another device, Owlbear) while this is open
+	useRemoteHero(props.hero.id, remote => setHero(Utils.copy(remote)));
+	const [ expression, setExpression ] = useState<Expression | null>(null);
+	const [ dice, setDice ] = useState<DieResult[] | null>(null);
+	const [ rolling, setRolling ] = useState<boolean>(false);
+	const [ showLevelUp, setShowLevelUp ] = useState<boolean>(false);
+	const [ showRetainers, setShowRetainers ] = useState<boolean>(false);
+	const options = useOptions();
+
+	const openExpression = (exp: Expression) => {
+		setDice(null);
+		setRolling(false);
+		setExpression(exp);
+	};
+
+	const rollExpression = (exp: Expression) => {
+		const rolls: number[] = [];
+		for (let n = 0; n < exp.throws; ++n) {
+			rolls.push(Random.die(exp.sides));
+		}
+
+		const copy = Utils.copy(exp);
+		copy.result = Collections.sum(rolls, r => r) + copy.constant;
+		setExpression(copy);
+
+		const type = RollLogic.getDieType(exp.sides);
+		if (options.show3DDice && type) {
+			// The result is revealed once the dice come to rest
+			setDice(rolls.map(r => ({ type: type, value: r })));
+			setRolling(true);
+		} else {
+			setDice(null);
+			setRolling(false);
+		}
+	};
+
+	// Called after the first throw, and again after each die the user rerolls
+	const onDiceSettled = (values: number[]) => {
+		setRolling(false);
+
+		if (expression) {
+			const copy = Utils.copy(expression);
+			copy.result = Collections.sum(values, v => v) + copy.constant;
+			setExpression(copy);
+		}
+	};
+
+	const gainSurges = (tag: string, value: number) => {
+		const copy = Utils.copy(hero);
+
+		copy.state.surges += value;
+
+		const gains = HeroLogic.getAllSurgeGains(copy).map(f => f.data);
+		const tags = HeroLogic.getSurgeGainTags(gains, tag);
+
+		gains
+			.filter(g => tags.has(g.tag))
+			.filter(g => g.frequency !== ResourceGainFrequency.AtWill)
+			.forEach(g => g.used = true);
+
+		setHero(copy);
+		props.onChange(copy);
+	};
+
+	const getGainButton = (gain: { tag: string, value: string, used: boolean }, onGain: (tag: string, value: number) => void, onRoll: (exp: Expression) => void, resourceID: string, resourceName: string, kind: 'resource' | 'surge', gainIndex: number = 0) => {
+		const digits = /^\s*[+-]?\s*\d+\s*$/;
+		if (digits.test(gain.value)) {
+			const v = parseInt(gain.value);
+			return (
+				<Button className='gain-btn' disabled={gain.used} onClick={() => onGain(gain.tag, v)}>
+					<div>+{gain.value}</div>
+				</Button>
+			);
+		}
+
+		const dice = /^(?<throws>\d+)d(?<sides>\d+)\s*(?:\+\s*(?<constant>\d+))?\s*$/;
+		const match = dice.exec(gain.value);
+		if (match) {
+			const exp: Expression = {
+				kind: kind,
+				resourceID: resourceID,
+				resourceName: resourceName,
+				tag: gain.tag,
+				gainIndex: gainIndex,
+				throws: parseInt(match.groups?.throws || '1'),
+				sides: parseInt(match.groups?.sides || '3'),
+				constant: parseInt(match.groups?.constant || '0'),
+				result: null
+			};
+			return (
+				<Button className='gain-btn' disabled={gain.used} onClick={() => onRoll(exp)}>
+					<div>+{gain.value}</div>
+				</Button>
+			);
+		}
+
+		return (
+			<div style={{ padding: '0 8px' }}>+{gain.value}</div>
+		);
+	};
+
+	const getHeroicResourceSection = () => {
+		const setHeroicResource = (featureID: string, value: number) => {
+			const copy = Utils.copy(hero);
+			HeroLogic.getFeatures(copy, false)
+				.map(f => f.feature)
+				.filter(f => f.type === FeatureType.HeroicResource)
+				.filter(f => f.id === featureID)
+				.forEach(f => f.data.value = value);
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const gainResource = (featureID: string, gainIndex: number, value: number) => {
+			const copy = Utils.copy(hero);
+
+			HeroLogic.getFeatures(copy, false)
+				.map(f => f.feature)
+				.filter(f => f.type === FeatureType.HeroicResource)
+				.filter(f => f.id === featureID)
+				.forEach(f => {
+					f.data.value += value;
+				});
+
+			// Gains are identified by position rather than by tag; a hero can have several
+			// gains sharing a tag (each domain's gain is untagged) and only one is claimed here.
+			// The start-of-turn gain is claimed like any other: the start of the hero's turn is not
+			// the start of the round, so it doesn't free up the per-round gains - starting a new round does
+			HeroLogic.getHeroicResources(copy)
+				.filter(hr => hr.id === featureID)
+				.flatMap(hr => hr.gains.filter((_, n) => n === gainIndex))
+				.filter(g => g.frequency !== ResourceGainFrequency.AtWill)
+				.forEach(g => g.used = true);
+
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const startRound = () => {
+			const copy = Utils.copy(hero);
+
+			// Clears every per-round gain the hero has - surge gains and every resource's gains included
+			HeroLogic.resetGains(copy, ResourceGainFrequency.OncePerRound);
+
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const startEncounter = () => {
+			const copy = Utils.copy(hero);
+
+			HeroLogic.startEncounter(copy);
+
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const endEncounter = () => {
+			const copy = Utils.copy(hero);
+
+			HeroLogic.getFeatures(copy, false)
+				.map(f => f.feature)
+				.filter(f => f.type === FeatureType.HeroicResource)
+				.filter(f => f.data.type === 'heroic')
+				.forEach(f => f.data.value = 0);
+
+			HeroLogic.resetGains(copy);
+
+			copy.state.victories += 1;
+			copy.state.surges = 0;
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		return (
+			<Space orientation='vertical' style={{ width: '100%' }}>
+				{
+					HeroLogic.getHeroicResources(hero)
+						.map(hr => (
+							<Space key={hr.id} orientation='vertical' style={{ width: '100%' }}>
+								<HeaderText>{Format.capitalize(hr.type)} Resource: {hr.name}</HeaderText>
+								<NumberSpin
+									value={hr.value}
+									min={hr.canBeNegative ? undefined : 0}
+									onChange={value => setHeroicResource(hr.id, value)}
+								/>
+								{
+									hr.gains.length > 0 ?
+										<>
+											{
+												hr.gains.map((g, n) => (
+													<div className={g.used ? 'gain used' : 'gain'} key={n}>
+														<div style={{ flex: '1 1 0' }}>{g.trigger}</div>
+														{g.frequency !== ResourceGainFrequency.AtWill ? <Pill>{g.frequency}</Pill> : null}
+														{getGainButton(g, (_, value) => gainResource(hr.id, n, value), openExpression, hr.id, hr.name, 'resource', n)}
+													</div>
+												))
+											}
+											{
+												hr.type === 'heroic' ?
+													<Flex align='center' justify='space-evenly' gap={10} wrap='wrap'>
+														<Button
+															key='start-encounter'
+															style={{ flex: '1 1 0' }}
+															className='tall-button'
+															onClick={startEncounter}
+														>
+															<div>
+																<div>Start Encounter</div>
+																<div className='subtext'>
+																	Victories to {hr.name || 'Heroic Resource'}
+																</div>
+															</div>
+														</Button>
+														<Button
+															key='start-round'
+															style={{ flex: '1 1 0' }}
+															className='tall-button'
+															onClick={startRound}
+														>
+															<div>
+																<div>New Round</div>
+																<div className='subtext'>
+																	Reset per-round gains
+																</div>
+															</div>
+														</Button>
+														<Button
+															key='end-encounter'
+															style={{ flex: '1 1 0' }}
+															className='tall-button'
+															onClick={endEncounter}
+														>
+															<div>
+																<div>End Encounter</div>
+																<div className='subtext'>
+																	+1 Victory
+																</div>
+															</div>
+														</Button>
+													</Flex>
+													: null
+											}
+										</>
+										: null
+								}
+							</Space>
+						))
+				}
+				<Drawer open={!!expression} onClose={() => setExpression(null)} closeIcon={null} size={500}>
+					<Modal
+						content={
+							expression ?
+								<Space orientation='vertical' style={{ width: '100%', padding: '0 20px' }}>
+									<HeaderText level={1}>
+										Roll
+									</HeaderText>
+									<div className='expression'>
+										<div className='expression-result'>
+											{
+												(expression.result === null) || rolling ?
+													expression.constant !== 0 ?
+														`+${expression.throws}d${expression.sides} +${expression.constant} ${expression.resourceName}`
+														:
+														`+${expression.throws}d${expression.sides} ${expression.resourceName}`
+													:
+													`+${expression.result}`
+											}
+										</div>
+									</div>
+									{
+										dice ?
+											<DiceTray dice={dice} onSettled={onDiceSettled} onReroll={() => setRolling(true)} />
+											: null
+									}
+									<Button
+										block={true}
+										onClick={() => rollExpression(expression)}
+									>
+										Roll
+									</Button>
+									<Button
+										block={true}
+										className='tall-button'
+										type='primary'
+										disabled={(expression.result === null) || rolling}
+										onClick={() => {
+											if (expression.result !== null) {
+												if (expression.kind === 'surge') {
+													gainSurges(expression.tag, expression.result);
+												} else {
+													gainResource(expression.resourceID, expression.gainIndex, expression.result);
+												}
+												setExpression(null);
+											}
+										}}
+									>
+										Gain {rolling ? '…' : (expression.result || 0)} {expression.resourceName}
+									</Button>
+								</Space>
+								: null
+						}
+						onClose={() => setExpression(null)}
+					/>
+				</Drawer>
+			</Space>
+		);
+	};
+
+	const getStatsSection = () => {
+		const setSurges = (value: number) => {
+			const copy = Utils.copy(hero);
+			copy.state.surges = value;
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const setVictories = (value: number) => {
+			const copy = Utils.copy(hero);
+			copy.state.victories = value;
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const setRenown = (value: number) => {
+			const copy = Utils.copy(hero);
+			copy.state.renown = value;
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const setWealth = (value: number) => {
+			const copy = Utils.copy(hero);
+			copy.state.wealth = value;
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const addFollower = (type: FollowerType) => {
+			const follower = FactoryLogic.feature.createFollower({
+				id: Utils.guid(),
+				follower: FactoryLogic.createFollower(type)
+			});
+
+			const copy = Utils.copy(hero);
+			copy.features.push(follower);
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const addRetainer = (monster: Monster) => {
+			const retainer = FactoryLogic.feature.createRetainer({
+				id: Utils.guid(),
+				retainer: monster
+			});
+
+			const copy = Utils.copy(hero);
+			copy.features.push(retainer);
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const surgeGains = HeroLogic.getSurgeGains(hero);
+
+		const maxCharacteristic = Math.max(...[
+			HeroLogic.getCharacteristic(hero, Characteristic.Might),
+			HeroLogic.getCharacteristic(hero, Characteristic.Agility),
+			HeroLogic.getCharacteristic(hero, Characteristic.Reason),
+			HeroLogic.getCharacteristic(hero, Characteristic.Intuition),
+			HeroLogic.getCharacteristic(hero, Characteristic.Presence)
+		]);
+
+		return (
+			<Space orientation='vertical' style={{ width: '100%' }}>
+				<HeaderText>Surges</HeaderText>
+				<NumberSpin
+					value={hero.state.surges}
+					min={0}
+					onChange={setSurges}
+				/>
+				{
+					surgeGains.map(f => (
+						<div className={f.data.used ? 'gain used' : 'gain'} key={f.id}>
+							<div style={{ flex: '1 1 0' }}>
+								<div>{f.data.trigger}</div>
+								{
+									f.data.condition ?
+										<div className='gain-condition'>{f.data.condition}</div>
+										: null
+								}
+								{
+									f.description ?
+										<div className='gain-description'>{f.description}</div>
+										: null
+								}
+							</div>
+							{f.data.frequency !== ResourceGainFrequency.AtWill ? <Pill>{f.data.frequency}</Pill> : null}
+							{getGainButton(f.data, gainSurges, openExpression, '', 'Surges', 'surge')}
+						</div>
+					))
+				}
+				{
+					hero.state.surges > 0 ?
+						<Alert
+							type='info'
+							title={
+								<>
+									<div>
+										Spend <b>1 - 3 surges</b> to add {maxCharacteristic} damage per surge to one target.
+									</div>
+									{
+										hero.state.surges >= 2 ?
+											<div>Spend <b>2 surges</b> to increase an ability’s potency by 1 for a single target.</div>
+											: null
+									}
+								</>
+							}
+						/>
+						: null
+				}
+				<HeaderText>Victories</HeaderText>
+				<NumberSpin
+					value={hero.state.victories}
+					min={0}
+					onChange={setVictories}
+				/>
+				<HeaderText>Renown</HeaderText>
+				<NumberSpin
+					value={hero.state.renown}
+					format={() => HeroLogic.getRenown(hero).toString()}
+					onChange={setRenown}
+				/>
+				{
+					hero.features.filter(f => [ FeatureType.Follower, FeatureType.Retainer ].includes(f.type)).length < Math.floor(HeroLogic.getRenown(hero) / 3) ?
+						<Alert
+							type='info'
+							title={
+								<>
+									<div>
+										You can gain a follower (an artisan, a sage, or a retainer).
+									</div>
+									<Flex gap={10} style={{ margin: '5px 0' }}>
+										<Button block={true} onClick={() => addFollower(FollowerType.Artisan)}>Add an artisan</Button>
+										<Button block={true} onClick={() => addFollower(FollowerType.Sage)}>Add a sage</Button>
+										<Button block={true} onClick={() => setShowRetainers(true)}>Add a retainer</Button>
+									</Flex>
+								</>
+							}
+						/>
+						: null
+				}
+				<HeaderText>Wealth</HeaderText>
+				<NumberSpin
+					value={hero.state.wealth}
+					format={() => HeroLogic.getWealth(hero).toString()}
+					onChange={setWealth}
+				/>
+				<Drawer open={showRetainers} onClose={() => setShowRetainers(false)} closeIcon={null} size={500}>
+					<RetainerSelectModal
+						monsters={SourcebookLogic.getMonsters(props.sourcebooks)}
+						sourcebooks={props.sourcebooks}
+						onSelect={monster => {
+							setShowRetainers(false);
+
+							const monsterCopy = Utils.copy(monster) as Monster;
+							if (monsterCopy.retainer) {
+								// Retainers match hero level
+								monsterCopy.retainer.level = Math.max(monsterCopy.level, hero?.class?.level || 1);
+							}
+
+							addRetainer(monsterCopy);
+						}}
+						onClose={() => setShowRetainers(false)}
+					/>
+				</Drawer>
+			</Space>
+		);
+	};
+
+	const getExperienceSection = () => {
+		const setXP = (value: number) => {
+			const copy = Utils.copy(hero);
+			copy.state.xp = value;
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const minXP = HeroLogic.getMinXP(hero.class!.level, options);
+
+		return (
+			<Space orientation='vertical' style={{ width: '100%' }}>
+				<HeaderText>XP</HeaderText>
+				<NumberSpin
+					min={minXP}
+					suffix={`/ ${options.xpPerLevel * hero.class!.level}`}
+					value={hero.state.xp}
+					onChange={setXP}
+				/>
+				<Flex justify='center'>
+					<Progress percent={100 * (hero.state.xp - minXP) / options.xpPerLevel} steps={options.xpPerLevel} showInfo={false} />
+				</Flex>
+				{
+					HeroLogic.canLevelUp(hero, options) ?
+						<Alert
+							type='info'
+							showIcon={true}
+							title='You have enough XP to level up.'
+							action={<Button icon={<ArrowUpOutlined />} onClick={() => setShowLevelUp(true)}>Level Up</Button>}
+						/>
+						: null
+				}
+			</Space>
+		);
+	};
+
+	const getHeroTokenSection = () => {
+		const setHeroTokens = (value: number) => {
+			const copy = Utils.copy(hero);
+			copy.state.heroTokens = value;
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const gainSurges = () => {
+			const copy = Utils.copy(hero);
+			copy.state.heroTokens -= 1;
+			copy.state.surges += 2;
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		const gainStamina = () => {
+			const copy = Utils.copy(hero);
+			copy.state.heroTokens -= 2;
+			copy.state.staminaDamage = Math.max(copy.state.staminaDamage - HeroLogic.getRecoveryValue(copy), 0);
+			setHero(copy);
+			props.onChange(copy);
+		};
+
+		return (
+			<Space orientation='vertical' style={{ width: '100%' }}>
+				<HeaderText>Hero Tokens</HeaderText>
+				<NumberSpin
+					value={hero.state.heroTokens}
+					min={0}
+					onChange={setHeroTokens}
+				/>
+				<Alert
+					type='info'
+					title={
+						<>
+							<div>
+								Hero tokens are a resource shared by your party; they typically refresh at the beginning of each game session.
+							</div>
+							{
+								hero.state.heroTokens > 0 ?
+									<Flex align='center' justify='space-between' gap={10}>
+										<div>Spend a hero token to gain two surges.</div>
+										<Button onClick={gainSurges}>+2 Surges</Button>
+									</Flex>
+									: null
+							}
+							{
+								hero.state.heroTokens > 0 ?
+									<div>
+										Spend a hero token when you fail a saving throw to succeed on it instead.
+									</div>
+									: null
+							}
+							{
+								hero.state.heroTokens > 0 ?
+									<div>
+										Spend a hero token to reroll a test. You must use the new roll.
+									</div>
+									: null
+							}
+							{
+								hero.state.heroTokens >= 2 ?
+									<Flex align='center' justify='space-between' gap={10}>
+										<div>Spend 2 hero tokens on your turn or whenever you take damage (no action required) to regain Stamina equal to your recovery value before taking the damage.</div>
+										<div>
+											<Field
+												innerStyle={{ color: 'rgba(0, 0, 0, 0.88)' }}
+												orientation='vertical'
+												label='Stamina'
+												value={`${HeroLogic.getStamina(hero) - hero.state.staminaDamage} / ${HeroLogic.getStamina(hero)}`}
+											/>
+											<Button disabled={hero.state.staminaDamage === 0} onClick={gainStamina}>+{HeroLogic.getRecoveryValue(hero)} Stamina</Button>
+										</div>
+									</Flex>
+									: null
+							}
+						</>
+					}
+				/>
+			</Space>
+		);
+	};
+
+	return (
+		<Modal
+			content={
+				<div className='hero-resources-modal'>
+					<div style={{ paddingBottom: '20px' }}>
+						{getHeroicResourceSection()}
+						{getStatsSection()}
+						{getExperienceSection()}
+						{getHeroTokenSection()}
+					</div>
+					<Drawer open={showLevelUp} onClose={() => setShowLevelUp(false)} closeIcon={null} size={500}>
+						{
+							showLevelUp ?
+								<HeroLevelUpModal
+									hero={hero}
+									soucebooks={props.sourcebooks}
+									onAccept={h => {
+										setShowLevelUp(false);
+										setHero(h);
+										props.onChange(h);
+									}}
+									onClose={() => setShowLevelUp(false)}
+								/>
+								: null
+						}
+					</Drawer>
+				</div>
+			}
+			onClose={props.onClose}
+		/>
+	);
+};

@@ -2,6 +2,38 @@
 
 Decisions that change or refine the [research report](./forgesteel-owlbear-sync-report.md), newest first. Each says what was decided, why, and what it replaced. Setup and current state are in [SETUP.md](./SETUP.md).
 
+## Live panels (27 Nov 2026)
+
+Found in the Phase 5 Owlbear test: with the Resources drawer open in Forge Steel, a change made on the token in Owlbear reached the hero page but not the open drawer. That's Phase 3's known limit, "open panels keep their copy": upstream builds each drawer once, and the drawer keeps its own copy of the hero. **No data was lost.** Saves from a stale drawer merge correctly: Owlbear's +1 and two clicks in the drawer made +3 on the server. But the drawer showed the wrong number.
+
+All the decisions below were the user's.
+
+### Sync Steel's own copies of the drawers, behind a switch
+
+**Decision:** Sync Steel has its own copies of the **Resources**, **Vitals** and **Inventory** drawers (`src/sync-steel/panels/copies/`), which follow changes made elsewhere while open.
+- **The switch:** a **Live panels** switch on the Sync Steel page ("This device"), saved per device, chooses between them and upstream's originals. It's **on** by default, and off gives upstream's drawers untouched.
+- **Why not upstream's feature flags:** their list is private to `src/utils/feature-flags.ts`, an upstream file.
+
+**How they're swapped in, with no upstream edit:**
+- `vite.sync-steel.config.ts` runs a plugin (`src/sync-steel/build/live-panels.ts`). It sends every import of an upstream drawer to Sync Steel's switcher (`src/sync-steel/panels/<drawer>-modal.tsx`), which renders the copy or the original.
+- It covers every importer, including the tactical map's and the encounter runner's Vitals.
+- `npm start` uses upstream's config, so it keeps upstream's drawers. Use the branded build (`vite preview`) to try them.
+
+**How a copy follows changes:**
+- `SyncSteelProvider` now also publishes each hero it applies from the hub (`src/sync-steel/live/remote-heroes.ts`).
+- An open copy takes those, and only those. Changes from this device's own saves don't count, so a drawer never jumps back while you click.
+- **Remounts:**
+  - **Vitals** remounts its health panel on each remote change, because that panel keeps its own copy too.
+  - **Inventory** remounts its items and notes only when the remote change touched `inventory` or `inventoryText`, so notes being typed aren't reset by, say, damage.
+
+**Keeping the copies in step with upstream:**
+- **Generated, not hand-edited:** each copy is generated from upstream's current file by `src/sync-steel/panels/live-copy.ts`. Every change is marked `Sync Steel:`: the name, the stylesheet path, following remote changes, and the remounts.
+- **A drift test:** `panels.test.ts` fails when a copy isn't exactly that, which happens when upstream changes a drawer. The daily upstream merge's PR then fails CI and waits.
+- **The fix:** run `node scripts/sync-steel/update-live-panels.ts`, then review the diff.
+- **If upstream moves a drawer:** the branded build fails rather than quietly shipping the original.
+
+**Why copies rather than a wrapper:** the user chose copies, so Sync Steel can diverge from upstream's drawer if it needs to. Generating them keeps that cheap until then. To diverge, change `live-copy.ts`'s transform, not the copy.
+
 ## Phase 5: Owlbear, token → Forge Steel (26 Nov 2026)
 
 The first four were confirmed with the user before building; the rest are defaults chosen while planning and building, listed so they can be revisited. Built on branch `sync-steel/phase-5`.
@@ -202,7 +234,7 @@ The base is what the saving copy started from:
 - **Status:** the footer's Sync Steel button shows a dot, green when live and grey otherwise, drawn by `sync-steel-status.tsx` in our own footer action, with no upstream change.
 
 **Known limits:**
-- **Open panels keep their copy.** Upstream's drawers (Vitals and the like) and the hero editor copy the hero when they open, so they show remote changes only when reopened. Saves from them merge correctly.
+- **Open panels keep their copy.** Upstream's drawers (Vitals and the like) and the hero editor copy the hero when they open, so they show remote changes only when reopened. Saves from them merge correctly. (Since 27 Nov 2026, Sync Steel's [live panels](#live-panels-27-nov-2026) follow remote changes in the Resources, Vitals and Inventory drawers; the hero editor still doesn't.)
 - **Two tabs in one browser** share a device, so a save in one reaches the other only on its next reload or reconnect.
 - **A brief flicker** is possible when a remote change lands during the 400 ms save debounce; the merged revision follows within a second.
 
