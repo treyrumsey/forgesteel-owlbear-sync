@@ -14,7 +14,7 @@ export const manifest = (base: string) => ({
 	manifest_version: 1,
 	author: 'treyrumsey',
 	homepage_url: 'https://github.com/treyrumsey/forgesteel-owlbear-sync',
-	description: 'Shows Forge Steel heroes\' stamina, recoveries, surges, heroic resource and conditions on Draw Steel Tools tokens.',
+	description: 'Keeps Draw Steel Tools tokens and Forge Steel heroes in step: stamina, recoveries, surges, heroic resource, conditions.',
 	icon: `${base}icon.svg`,
 	background_url: `${base}background.html`,
 	action: {
@@ -55,7 +55,8 @@ export default defineConfig(({ command }) => ({
 			input: {
 				popover: 'index.html',
 				background: 'background.html',
-				picker: 'picker.html'
+				picker: 'picker.html',
+				conditions: 'conditions.html'
 			}
 		}
 	},

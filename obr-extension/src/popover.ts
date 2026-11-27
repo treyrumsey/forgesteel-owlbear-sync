@@ -37,6 +37,7 @@ const render = (status: Status) => {
 		...row('Room', status.bound ? (status.roomName || 'connected') : 'not connected to Sync Steel', status.bound ? '' : 'bad'),
 		...(status.bound ? row('Sync Steel', status.hubDetail && (status.hub !== 'live') ? `${HUB_TEXT[status.hub]}: ${status.hubDetail}` : HUB_TEXT[status.hub], status.hub === 'live' ? 'ok' : 'bad') : []),
 		...(status.bound ? row('Writes tokens', status.writerName || 'nobody') : []),
+		...(status.bound ? row('Token edits', status.hub === 'live' ? 'sent to Forge Steel' : 'not sent while Sync Steel is offline', status.hub === 'live' ? '' : 'bad') : []),
 		...row('Scene', status.sceneReady ? 'open' : 'none open')
 	];
 	element('status').replaceChildren(...rows);

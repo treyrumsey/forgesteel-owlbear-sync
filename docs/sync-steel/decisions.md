@@ -2,6 +2,85 @@
 
 Decisions that change or refine the [research report](./forgesteel-owlbear-sync-report.md), newest first. Each says what was decided, why, and what it replaced. Setup and current state are in [SETUP.md](./SETUP.md).
 
+## Phase 5: Owlbear, token → Forge Steel (26 Nov 2026)
+
+The first four were confirmed with the user before building; the rest are defaults chosen while planning and building, listed so they can be revisited. Built on branch `sync-steel/phase-5`.
+
+### Token edits travel as a hub message
+
+**Decision:** the extension sends `patch { heroId, baseRev, editId, values?, conditions? }` on its existing `/live` socket. The hub answers `ack { editId, rev, summaryRev }` or `reject { editId, reason }` (protocol in [server/README.md](../../server/README.md#api)).
+
+**How it becomes a revision:**
+1. The server takes the hero as it was at `baseRev`.
+2. It writes the token's values back into that copy with `HeroSummaryLogic.applyTokenPatch`, which is in the summary bundle:
+   - stamina becomes damage against `HeroLogic.getStamina`;
+   - recoveries become recoveries used, against `getRecoveries`;
+   - the primary resource is set by feature id;
+   - conditions are added or removed by id, checked against Forge Steel's enums.
+3. It saves the copy through `heroes.save` with `baseRev` as the stamp. The existing three-way merge then combines it with whatever Forge Steel changed since: counters add up, and conditions merge by id.
+
+**Why:**
+- **No new sign-in path:** the socket is already signed in with the Owlbear token. A REST endpoint would need a second auth path for it.
+- **No new merge code:** the server's merge already does the work.
+- **No migration:** the revision records the Owlbear device, which is `kind = 'owlbear'`, with source `device`.
+
+**Clamping:**
+- damage, temporary stamina, surges and recoveries used never go below 0;
+- recoveries used never exceed the maximum;
+- negative stamina (dying) and negative Clarity are kept;
+- values are rounded to whole numbers.
+
+**One-way fields:** the name, maximum stamina and resource name aren't patched. The writer puts them back.
+
+### The staleness guard: a summary revision, checked by the client
+
+**Decision:** the hub tracks, per hero, the revision at which its summary last changed, and **every summary carries that revision**, live or catch-up. A client sends an edit only if the token's `syncedRev` equals that revision for the hero. Otherwise the token shows an older summary, from a Party Continuity restore or a stale copy, and the writer overwrites it. Any change in the 2 s after the scene opens counts as a restore too.
+
+**Why a summary revision:** Phase 4 stamped each summary with the hero's revision at the time. A catch-up therefore re-sent unchanged summaries with newer revisions, so two Owlbear clients could disagree about the revision of the same summary. A token synced by one client would then look stale to the other. The summary revision is the same for everyone.
+
+**Accepted:**
+- After an api restart the map is empty and starts at each hero's current revision. Writers then rewrite each token's link once, with the same values.
+- An edit made in the moment between a new summary arriving and the writer applying it is overwritten. It's rare: the GM's laptop is both the usual editor and the writer.
+
+### One client sends each edit
+
+**Decision:** only the lowest connection of the player who made the change sends it, using the item's `lastModifiedUserId` and each party member's `Player.id`. If that player has left, the elected writer sends it.
+- **Own writes:** our writes are recognised by signature and never sent.
+- **DST clobbers:** a field DST put back to its value from before our write, within 1.5 s, isn't sent (spike finding 8). The writer re-asserts it instead.
+- **Edit ids:** each edit's id is the token id plus the item's `lastModified`, which every client sees the same. The hub remembers ids for 2 minutes and answers a repeated id without applying it again.
+
+**Why:** a GM signed in on the laptop and the TV is one player with two connections. Picking the lowest sends each edit once; the edit id is a second guard.
+
+### Conditions: a token menu and a modal, for everyone
+
+**Decision:** a **Conditions** context-menu item on linked tokens, for GM and players, opens a modal (`conditions.html`, plain DOM like the hero picker). It lists the hero's conditions with **Remove**, and adds one with a type, when it ends, and a name for custom and quick conditions.
+
+**Sending:** the background page sends the change at once, against the latest summary. Conditions merge by id, so the base doesn't need to match the token. The badges update when the merged summary comes back; nothing is drawn ahead of the server.
+
+**Why everyone:** Draw Steel Tools lets anyone edit a token's stats; conditions match that.
+
+### Defaults chosen while planning and building
+
+- **No session:** the Owlbear device has no session id (`sid` null), so a patch's base is always its `baseRev`. Up to 20 clients share the token, so a shared session base would be wrong.
+- **One patch per token at a time:**
+  - The forwarding client holds the token until the answer comes, and after an `ack`, until it has the summary at `summaryRev` (10 s at most). The writer doesn't touch a held token.
+  - A change made meanwhile is sent next, against the new summary. Until the writer rewrites the link, the token counts as showing it.
+  - Without this, two patches from the same base would count the first change twice.
+- **Pacing:** 500 ms trailing, 2 s at most, per token (report §4.8 stage 4).
+- **Disconnects:**
+  - patches wait for the hub's catch-up before they're sent;
+  - a patch sent but not answered when the socket drops is never resent, since it may already be applied; the token is reconciled from the server instead.
+- **A reject** shows an Owlbear notification to the editing player, and the token goes back to the server's values.
+- **Limits:**
+  - 300 patches a minute per Owlbear token;
+  - Owlbear messages up to 16 KB (Forge Steel devices stay at 1 KB);
+  - `base-gone` when the base revision has been pruned (each hero keeps its last 100).
+- **The bundle must export `applyTokenPatch`:** the api won't start with an older bundle, and its error says how to rebuild it.
+
+### Railway: saving watch paths redeploys
+
+**Finding (26 Nov 2026):** setting Phase 4's watch paths with `railway environment edit` committed the change, and that redeployed both services on the current commit. It isn't settings-only, so change Railway settings outside play sessions too.
+
 ## Phase 4: Owlbear, Forge Steel → token (25 Nov 2026)
 
 The first four were confirmed with the user before building; the rest are defaults chosen while planning, listed so they can be revisited. Built on branch `sync-steel/phase-4`.
@@ -50,8 +129,8 @@ The first four were confirmed with the user before building; the rest are defaul
 
 - **Linking:** a GM-only token menu, **Link to hero**, opens a picker listing the room's heroes with name matches first. **Unlink from hero** removes the link; the token keeps its stats.
 - **The writer:** a GM first, then the lowest connection id. With nobody else connected, a player's client writes.
-- **Edits on the token:** in Phase 4, a DST edit to a synced field stays until the hero next changes (or a stale token is reconciled). The how-to says to edit in Forge Steel until Phase 5.
-- **Summaries only when they change:** the hub pushes a summary only if it differs from the last one, so a token's `syncedRev` is the revision its summary was computed at, not always the hero's latest. **Phase 5's staleness guard must compare against the latest summary's revision**, not the hero's.
+- **Edits on the token:** in Phase 4, a DST edit to a synced field stays until the hero next changes (or a stale token is reconciled). The how-to says to edit in Forge Steel until Phase 5. (Phase 5 sends them to Forge Steel.)
+- **Summaries only when they change:** the hub pushes a summary only if it differs from the last one, so a token's `syncedRev` is the revision its summary was computed at, not always the hero's latest. **Phase 5's staleness guard must compare against the latest summary's revision**, not the hero's. (Phase 5 made every summary carry the revision at which it last changed; see [above](#the-staleness-guard-a-summary-revision-checked-by-the-client).)
 - **Re-asserting after a clobber:** 1.5 s after a write, a field back at its old value is DST saving an older copy (spike finding 8), and is written again.
 - **The spike tool** stays as a development-only page (`spike.html`), not in the build.
 

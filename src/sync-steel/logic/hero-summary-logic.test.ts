@@ -122,3 +122,103 @@ describe('HeroSummaryLogic.getSummary', () => {
 		expect(summary.recoveries).toBe(10);
 	});
 });
+
+describe('HeroSummaryLogic.applyTokenPatch', () => {
+	const bleeding = { id: 'c1', type: ConditionType.Bleeding, text: '', ends: ConditionEndType.SaveEnds };
+
+	it('writes each Draw Steel Tools value back into the hero\'s state', () => {
+		const hero = buildHero(fury, 1);
+		const patched = HeroSummaryLogic.applyTokenPatch(hero, {
+			values: { stamina: 16, temporaryStamina: 3, recoveries: 8, surges: 2, heroicResource: 4 }
+		});
+
+		expect(patched.state.staminaDamage).toBe(5);
+		expect(patched.state.staminaTemp).toBe(3);
+		expect(patched.state.recoveriesUsed).toBe(2);
+		expect(patched.state.surges).toBe(2);
+		expect(HeroSummaryLogic.getSummary(patched)).toMatchObject({
+			stamina: 16, staminaTemp: 3, recoveries: 8, surges: 2, resource: { featureId: 'fury-resource', value: 4 }
+		});
+		// The original is untouched
+		expect(hero.state.staminaDamage).toBe(0);
+	});
+
+	it('round-trips a summary', () => {
+		const hero = buildHero(beastheart, 10);
+		hero.state.staminaDamage = 40;
+		hero.state.recoveriesUsed = 3;
+		setResource(hero, 'beastheart-resource', 5);
+		const summary = HeroSummaryLogic.getSummary(hero);
+
+		const patched = HeroSummaryLogic.applyTokenPatch(hero, {
+			values: { stamina: summary.stamina, temporaryStamina: summary.staminaTemp, recoveries: summary.recoveries, surges: summary.surges, heroicResource: summary.resource!.value }
+		});
+		expect(patched).toEqual(hero);
+	});
+
+	it('changes only the values given', () => {
+		const hero = buildHero(fury, 1);
+		hero.state.staminaDamage = 7;
+		hero.state.surges = 1;
+
+		const patched = HeroSummaryLogic.applyTokenPatch(hero, { values: { surges: 3 } });
+		expect(patched.state.staminaDamage).toBe(7);
+		expect(patched.state.surges).toBe(3);
+	});
+
+	it('allows negative stamina (dying) and keeps values in range', () => {
+		const hero = buildHero(fury, 1);
+
+		expect(HeroSummaryLogic.applyTokenPatch(hero, { values: { stamina: -4 } }).state.staminaDamage).toBe(25);
+		expect(HeroSummaryLogic.applyTokenPatch(hero, { values: { stamina: 30 } }).state.staminaDamage).toBe(0);
+		expect(HeroSummaryLogic.applyTokenPatch(hero, { values: { recoveries: 12 } }).state.recoveriesUsed).toBe(0);
+		expect(HeroSummaryLogic.applyTokenPatch(hero, { values: { recoveries: -1 } }).state.recoveriesUsed).toBe(10);
+		expect(HeroSummaryLogic.applyTokenPatch(hero, { values: { temporaryStamina: -2, surges: -1 } }).state).toMatchObject({ staminaTemp: 0, surges: 0 });
+		expect(HeroSummaryLogic.applyTokenPatch(hero, { values: { surges: 2.6 } }).state.surges).toBe(3);
+	});
+
+	it('keeps a Talent\'s negative Clarity', () => {
+		const hero = buildHero(talent, 1);
+
+		const patched = HeroSummaryLogic.applyTokenPatch(hero, { values: { heroicResource: -3 } });
+		expect(HeroSummaryLogic.getSummary(patched).resource).toEqual({ featureId: 'talent-resource', name: 'Clarity', value: -3 });
+	});
+
+	it('sets a Beastheart\'s Ferocity, not Rampage or the epic resource', () => {
+		const hero = buildHero(beastheart, 10);
+		setResource(hero, 'beastheart-1-4', 5);
+		setResource(hero, 'beastheart-10-4', 7);
+
+		const patched = HeroSummaryLogic.applyTokenPatch(hero, { values: { heroicResource: 2 } });
+		const values = Object.fromEntries(HeroLogic.getHeroicResources(patched).map(r => [ r.id, r.value ]));
+		expect(values).toMatchObject({ 'beastheart-resource': 2, 'beastheart-1-4': 5, 'beastheart-10-4': 7 });
+	});
+
+	it('ignores a heroic resource for a hero without one', () => {
+		const hero = FactoryLogic.createHero();
+
+		expect(HeroSummaryLogic.applyTokenPatch(hero, { values: { heroicResource: 3 } })).toEqual(hero);
+	});
+
+	it('adds and removes conditions by id', () => {
+		const hero = buildHero(fury, 1);
+		hero.state.conditions = [ bleeding ];
+		const slowed = { id: 'c2', type: ConditionType.Slowed, text: '', ends: ConditionEndType.EndOfTurn };
+
+		const patched = HeroSummaryLogic.applyTokenPatch(hero, { conditions: { add: [ slowed, bleeding ], remove: [ 'c1', 'gone' ] } });
+		expect(patched.state.conditions).toEqual([ slowed ]);
+
+		const custom = { id: 'c3', type: ConditionType.Custom, text: 'Marked', ends: ConditionEndType.UntilRemoved };
+		expect(HeroSummaryLogic.applyTokenPatch(hero, { conditions: { add: [ custom ] } }).state.conditions).toEqual([ bleeding, custom ]);
+	});
+
+	it.each([
+		[ 'a non-number', { values: { stamina: 'x' as unknown as number } } ],
+		[ 'NaN', { values: { surges: NaN } } ],
+		[ 'an unknown condition type', { conditions: { add: [ { ...bleeding, type: 'Sleepy' as ConditionType } ] } } ],
+		[ 'an unknown condition end', { conditions: { add: [ { ...bleeding, ends: 'EoT' as ConditionEndType } ] } } ],
+		[ 'a condition without an id', { conditions: { add: [ { ...bleeding, id: '' } ] } } ]
+	])('rejects %s', (_name, patch) => {
+		expect(() => HeroSummaryLogic.applyTokenPatch(buildHero(fury, 1), patch)).toThrow();
+	});
+});

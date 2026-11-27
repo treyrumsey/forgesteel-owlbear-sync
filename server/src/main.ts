@@ -1,7 +1,7 @@
 import { createApp, listen } from './app.ts';
 import { createSnapshotter } from './snapshots.ts';
 import { loadConfig } from './config.ts';
-import { loadSummarizer } from './summary.ts';
+import { loadSummaryTools } from './summary.ts';
 import { migrate } from './db/migrate.ts';
 import { openDatabase } from './db/database.ts';
 import { seedDevRoom } from './dev-seed.ts';
@@ -31,8 +31,8 @@ const db = openDatabase(config.databasePath);
 const applied = migrate(db);
 writeLine(`Database ${config.databasePath}${applied.length > 0 ? `; applied ${applied.join(', ')}` : ''}`);
 
-const summarize = await loadSummarizer(config.summaryModule);
-if (!summarize) {
+const summaries = await loadSummaryTools(config.summaryModule);
+if (!summaries) {
 	if (config.production) {
 		stop(`The hero summary bundle is missing at ${config.summaryModule}. server/Dockerfile builds it.`);
 	}
@@ -50,7 +50,7 @@ const { app, services, hub } = createApp({
 	revisionKeepLast: config.revisionKeepLast,
 	revisionDailyDays: config.revisionDailyDays,
 	snapshotDir: config.snapshotDir,
-	summarize: summarize,
+	summaries: summaries,
 	log: writeLine
 });
 

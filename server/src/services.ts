@@ -7,7 +7,7 @@ import { type SeatDataStore, createSeatDataStore } from './store/seat-data.ts';
 import { type SecretKind, hashSecret } from './secrets.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import { HttpError } from './http.ts';
-import type { Summarize } from './summary.ts';
+import type { SummaryTools } from './summary.ts';
 
 export interface BodyLimits {
 	hero: number;
@@ -24,6 +24,8 @@ export interface RateLimits {
 	joinFailuresGlobal: RateRule;
 	connect: RateRule;
 	connectFailures: RateRule;
+	// Token edits from Owlbear, per Owlbear token: every client in the Owlbear room shares it
+	owlbearPatches: RateRule;
 }
 
 const MB = 1024 * 1024;
@@ -43,7 +45,8 @@ export const DEFAULT_RATE_LIMITS: RateLimits = {
 	joinFailures: { limit: 20, windowSeconds: 10 * 60 },
 	joinFailuresGlobal: { limit: 300, windowSeconds: 60 * 60 },
 	connect: { limit: 120, windowSeconds: 10 * 60 },
-	connectFailures: { limit: 20, windowSeconds: 10 * 60 }
+	connectFailures: { limit: 20, windowSeconds: 10 * 60 },
+	owlbearPatches: { limit: 300, windowSeconds: 60 }
 };
 
 export interface Secrets {
@@ -68,8 +71,8 @@ export interface ServiceOptions {
 	now?: () => number;
 	log?: (line: string) => void;
 	events?: EventBus;
-	// Hero summaries for the Owlbear extension; null turns Owlbear connections away
-	summarize?: Summarize | null;
+	// Hero summaries and token patches for the Owlbear extension; null turns Owlbear connections away
+	summaries?: SummaryTools | null;
 }
 
 export interface Services {
@@ -79,7 +82,7 @@ export interface Services {
 	homebrew: HomebrewStore;
 	seatData: SeatDataStore;
 	events: EventBus;
-	summarize: Summarize | null;
+	summaries: SummaryTools | null;
 	limiter: RateLimiter;
 	rateLimits: RateLimits;
 	bodyLimits: BodyLimits;
@@ -136,7 +139,7 @@ export const createServices = (options: ServiceOptions): Services => {
 		homebrew: createHomebrewStore(options.db, nowIso),
 		seatData: createSeatDataStore(options.db, nowIso),
 		events: options.events ?? createEventBus(),
-		summarize: options.summarize ?? null,
+		summaries: options.summaries ?? null,
 		limiter: limiter,
 		rateLimits: { ...DEFAULT_RATE_LIMITS, ...options.rateLimits },
 		bodyLimits: { ...DEFAULT_BODY_LIMITS, ...options.bodyLimits },

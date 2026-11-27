@@ -18,3 +18,5 @@ export const LOCAL_CHANNEL = `${PREFIX}/local`;
 export const LINK_MENU_ID = `${PREFIX}/link`;
 export const UNLINK_MENU_ID = `${PREFIX}/unlink`;
 export const PICKER_MODAL_ID = `${PREFIX}/picker`;
+export const CONDITIONS_MENU_ID = `${PREFIX}/conditions`;
+export const CONDITIONS_MODAL_ID = `${PREFIX}/conditions-modal`;

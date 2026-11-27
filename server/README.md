@@ -98,15 +98,26 @@ Behaviour details:
 
 | Message | Notes |
 |---|---|
-| ← `{ type: "welcome", serverTime, kind: "obr", room: { name } }` | Then a summary of each hero it doesn't have at the current revision, `hero.deleted` for any it has that are gone, and `synced` |
-| ← `{ type: "summary", summary }` | `{ heroId, rev, seatName, name, staminaMax, stamina, staminaTemp, recoveriesMax, recoveries, surges, resource: { featureId, name, value } \| null, conditions }` (`src/summary.ts`). Sent only when the summary changed, so a notes or inventory edit doesn't reach Owlbear, and `rev` is the revision it was computed at |
+| ← `{ type: "welcome", serverTime, kind: "obr", room: { name } }` | Then a summary of each hero it doesn't have at its current summary revision, `hero.deleted` for any it has that are gone, and `synced` |
+| ← `{ type: "summary", summary }` | `{ heroId, rev, seatName, name, staminaMax, stamina, staminaTemp, recoveriesMax, recoveries, surges, resource: { featureId, name, value } \| null, conditions }` (`src/summary.ts`). Sent only when the summary changed, so a notes or inventory edit doesn't reach Owlbear. **`rev` is the summary's revision:** the hero revision at which the summary last changed, the same for every client (Phase 5). After a restart it starts at the hero's current revision |
 | ← `{ type: "synced" }` | The catch-up is complete |
+| → `{ type: "patch", heroId, baseRev, editId, values?, conditions? }` | **Phase 5:** an edit made on a linked token (`src/token-patch.ts`). `values` holds the token's new Draw Steel Tools values, any of `stamina`, `temporaryStamina`, `recoveries`, `surges` and `heroicResource`. `conditions` is `{ add: [condition], remove: [id] }`. `baseRev` is the summary revision the token shows |
+| ← `{ type: "ack", editId, rev, summaryRev }` | Saved as `rev` (or unchanged at it). A summary at `summaryRev` or later follows, unless the client already has it |
+| ← `{ type: "reject", editId, reason }` | `invalid`, `rate-limited`, `unknown-hero` (missing or deleted), or `base-gone` (the base revision is no longer kept) |
+
+**How a patch is applied:** the hero as it was at `baseRev` gets the token's values written back with `HeroSummaryLogic.applyTokenPatch` (from the summary bundle):
+- stamina becomes damage against the maximum;
+- recoveries become recoveries used;
+- the resource is set by feature id;
+- conditions are added or removed by id.
+
+That copy is saved with `baseRev` as its base, so the three-way merge combines it with whatever Forge Steel changed since: counters add up, and conditions merge by id. Its revision records the Owlbear device, with no session. An edit id seen in the last 2 minutes gets the same answer and isn't applied again, so two clients forwarding one edit apply it once. Patches are limited to 300 a minute per Owlbear token.
 
 Every Owlbear client in the room shares the token, so up to 20 sockets may use it. A server without the summary bundle closes the Owlbear hello with `4003`.
 
 - **Visibility:** the same as the Warehouse API: players get their seat's heroes; the GM gets the room's.
 - **Origin:** the upgrade must come from one of `CORS_ORIGINS` (`403` otherwise).
-- **Close codes:** `4001` for a bad or revoked device token (also sent at once when the GM disconnects the device), `4008` when a device opens more than 4 sockets (the oldest closes) or a room passes 60, `4029` after too many failed tokens, `1009` for a message over 1 KB after hello.
+- **Close codes:** `4001` for a bad or revoked device token (also sent at once when the GM disconnects the device), `4008` when a device opens more than 4 sockets (the oldest closes) or a room passes 60, `4029` after too many failed tokens, `1009` for a message over 1 KB after hello (16 KB from the Owlbear extension).
 - **Heartbeat:** a protocol ping every 30 s; a socket that misses one is dropped.
 
 **Rooms** (no device token needed; rate-limited per IP):

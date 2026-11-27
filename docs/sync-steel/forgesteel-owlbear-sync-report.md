@@ -353,6 +353,13 @@ server → obr     ack       { editId, rev }  |  reject { editId, reason }
 >
 > See [decisions](./decisions.md#phase-4-owlbear-forge-steel--token-25-nov-2026).
 
+> **Phase 5 (26 Nov 2026):** `patch`, `ack` and `reject` are built, with changes:
+> - **Values:** `patch` carries the token's Draw Steel Tools values (`values`) rather than hero `changes`. The server writes them back into the hero at `baseRev` and merges the result.
+> - **Summary revision:** `ack` adds `summaryRev`, the summary revision to wait for.
+> - **Agreed revisions:** each summary's `rev` is now the revision at which the summary last changed, so every client agrees on it.
+>
+> See [decisions](./decisions.md#phase-5-owlbear-token--forge-steel-26-nov-2026).
+
 ### 4.6 Forge Steel fork: the Sync Steel module (`src/sync-steel/`)
 
 **Room panel:**
@@ -403,10 +410,17 @@ Writes follow the pacing rules in §4.8, re-read the token immediately before wr
 > - Compare **values**, not serialised JSON: Draw Steel Tools re-saves with its keys reordered.
 > - A field that snaps back to its value from before our write, inside the verify window, is Draw Steel Tools overwriting our write, not a user edit. Re-assert our value rather than forwarding it.
 
+> **Phase 5 (26 Nov 2026):** built as described, with changes ([decisions](./decisions.md#phase-5-owlbear-token--forge-steel-26-nov-2026)):
+> - **The sender:** the lowest connection of the editing player, with the elected writer as fallback, and an edit id every client agrees on.
+> - **The base:** the token's summary revision, which is now the revision at which the summary last changed.
+> - **One patch at a time:** one patch per token is out at once, and the writer leaves that token alone meanwhile.
+
 **Conditions:**
 - Stored in our key on the token.
 - Each client draws **local** badge items from that data, as Draw Steel Tools does for its bars, so there are no shared writes and nothing for Party Continuity to copy.
 - A context menu lets players add or remove conditions.
+
+> **Phase 5:** a **Conditions** token menu, for the GM and players, opens a modal that sends the change as a `patch`.
 
 **Hosting.** Static files with CORS headers on `manifest.json` and the SVG icons.
 
@@ -429,7 +443,7 @@ Constraints:
 | Aspect | Effect | Design response |
 |---|---|---|
 | Complementary | Party Continuity moves tokens between scenes; we keep their stats current | The link lives on the token, so you **link once** and it works in every scene |
-| **Stale restore** | When a scene opens, Party Continuity may write **old** Draw Steel Tools values back | Forward a token change only if its `syncedRev` equals the hero's current revision. Otherwise treat it as a restore and **overwrite it from the server**. Always reconcile from the server after the scene settles |
+| **Stale restore** | When a scene opens, Party Continuity may write **old** Draw Steel Tools values back | Forward a token change only if its `syncedRev` equals the hero's current revision. Otherwise treat it as a restore and **overwrite it from the server**. Always reconcile from the server after the scene settles. **Phase 5:** the hero's latest *summary* revision, plus no forwarding in the 2 s after the scene opens |
 | Durability overlap | Party Continuity's storage exists only in the GM's browser | The server is authoritative for linked heroes; a lost Party Continuity save costs only token cosmetics |
 | Badges | Attached items aren't carried | Badges are local, redrawn from token data on every scene load |
 | Closed source | Its internals can't be inspected | No dependency on it; test hands-on in the spike (requires a paid membership) |
@@ -644,6 +658,12 @@ No time estimates; each phase leaves something usable.
 4. **Owlbear, Forge Steel → token:** room binding, linking, summaries, elected writer, pacing, Draw Steel Tools writes, condition badges.
    - **Built 25 Nov 2026,** with changes: summaries come from a server-side bundle of `HeroLogic`, and the extension signs in with a room-scoped Owlbear token that the GM creates on the Sync Steel page. See [decisions](./decisions.md#phase-4-owlbear-forge-steel--token-25-nov-2026).
 5. **Owlbear, token → Forge Steel:** edit forwarding, patches, the Party Continuity stale-restore guard, condition editing.
+   - **Built 26 Nov 2026,** with changes:
+     - patches travel on the hub socket and go through the existing three-way merge;
+     - each summary carries the revision at which it last changed;
+     - a Conditions token menu is open to everyone.
+
+     See [decisions](./decisions.md#phase-5-owlbear-token--forge-steel-26-nov-2026).
 6. **Hardening:** rate limits, audit log views, a restore drill, monitoring, short how-to docs for the group.
 
 **Optional requests to Andy that would shrink the fork** (each useful on its own):

@@ -8,6 +8,22 @@ import type { Connection } from './connection.ts';
 
 export type HubStatus = 'off' | 'connecting' | 'live' | 'offline';
 
+// An edit made on a linked token (Phase 5), against the summary revision the token shows (server/src/token-patch.ts)
+export interface PatchMessage {
+	heroId: string;
+	baseRev: number;
+	editId: string;
+	values?: { stamina?: number, temporaryStamina?: number, recoveries?: number, surges?: number, heroicResource?: number };
+	conditions?: { add?: { id: string, type: string, text: string, ends: string }[], remove?: string[] };
+}
+
+// The hub's answer. A patch sent but not answered when the connection drops gets 'disconnected': it may or
+// may not have been applied, so it's never sent again (that could apply it twice) and the token is
+// reconciled from the server instead.
+export type PatchAnswer =
+	| { type: 'ack', editId: string, rev: number, summaryRev: number }
+	| { type: 'reject', editId: string, reason: string };
+
 export interface SocketLike {
 	readonly readyState: number;
 	onopen: ((event: unknown) => void) | null;
@@ -25,6 +41,7 @@ export interface HubClientOptions {
 	// After each (re)connect's catch-up, once the summaries are complete
 	onSynced: () => void;
 	onStatus: (status: HubStatus, detail?: string) => void;
+	onAnswer?: (answer: PatchAnswer) => void;
 	createSocket?: (url: string) => SocketLike;
 	random?: () => number;
 }
@@ -43,6 +60,10 @@ export class HubClient {
 	private readonly summaries = new Map<string, HeroSummary>();
 	private socket: SocketLike | null = null;
 	private welcomed = false;
+	private synced = false;
+	// Patches waiting for the catch-up to finish, and those sent and not yet answered
+	private readonly queued = new Map<string, PatchMessage>();
+	private readonly sent = new Set<string>();
 	private stopped = true;
 	private attempts = 0;
 	private retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -61,6 +82,20 @@ export class HubClient {
 		return [ ...this.summaries.values() ];
 	}
 
+	// Sends now if the hub has caught up, otherwise once it has
+	patch(message: PatchMessage) {
+		if (this.stopped) {
+			this.options.onAnswer?.({ type: 'reject', editId: message.editId, reason: 'disconnected' });
+			return;
+		}
+		if (this.socket && (this.socket.readyState === OPEN) && this.synced) {
+			this.sent.add(message.editId);
+			this.socket.send(JSON.stringify({ type: 'patch', ...message }));
+			return;
+		}
+		this.queued.set(message.editId, message);
+	}
+
 	start() {
 		if (!this.stopped) {
 			return;
@@ -73,6 +108,7 @@ export class HubClient {
 		this.stopped = true;
 		this.clearTimers();
 		this.drop();
+		this.abandonQueued();
 		this.options.onStatus('off');
 	}
 
@@ -112,6 +148,7 @@ export class HubClient {
 		}
 		this.socket = socket;
 		this.welcomed = false;
+		this.synced = false;
 
 		socket.onopen = () => {
 			const known = Object.fromEntries([ ...this.summaries.values() ].map(summary => [ summary.heroId, summary.rev ]));
@@ -128,9 +165,12 @@ export class HubClient {
 			}
 			this.socket = null;
 			this.welcomed = false;
+			this.synced = false;
+			this.abandonSent();
 			if (FINAL_CLOSE_CODES.includes(event.code)) {
 				this.stopped = true;
 				this.clearTimers();
+				this.abandonQueued();
 				this.options.onStatus('offline', event.reason || `Closed (${event.code})`);
 				return;
 			}
@@ -170,8 +210,27 @@ export class HubClient {
 				}
 				break;
 			case 'synced':
+				this.synced = true;
 				this.options.onSynced();
+				[ ...this.queued.values() ].forEach(message => {
+					this.queued.delete(message.editId);
+					this.patch(message);
+				});
 				break;
+			case 'ack':
+			case 'reject': {
+				const editId = typeof message.editId === 'string' ? message.editId : '';
+				if (!this.sent.delete(editId)) {
+					break;
+				}
+				if (message.type === 'ack') {
+					const rev = Number.isInteger(message.rev) ? message.rev as number : 0;
+					this.options.onAnswer?.({ type: 'ack', editId: editId, rev: rev, summaryRev: Number.isInteger(message.summaryRev) ? message.summaryRev as number : rev });
+				} else {
+					this.options.onAnswer?.({ type: 'reject', editId: editId, reason: typeof message.reason === 'string' ? message.reason : 'rejected' });
+				}
+				break;
+			}
 			case 'pong':
 				if (this.pongTimer) {
 					clearTimeout(this.pongTimer);
@@ -196,10 +255,24 @@ export class HubClient {
 		}, delay);
 	}
 
+	private abandonSent() {
+		const sent = [ ...this.sent ];
+		this.sent.clear();
+		sent.forEach(editId => this.options.onAnswer?.({ type: 'reject', editId: editId, reason: 'disconnected' }));
+	}
+
+	private abandonQueued() {
+		const queued = [ ...this.queued.keys() ];
+		this.queued.clear();
+		queued.forEach(editId => this.options.onAnswer?.({ type: 'reject', editId: editId, reason: 'disconnected' }));
+	}
+
 	private drop() {
 		const socket = this.socket;
 		this.socket = null;
 		this.welcomed = false;
+		this.synced = false;
+		this.abandonSent();
 		if (socket) {
 			socket.onclose = null;
 			socket.onmessage = null;

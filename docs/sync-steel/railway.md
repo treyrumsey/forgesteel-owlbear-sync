@@ -31,7 +31,7 @@ JSON
 railway variable set "CORS_ORIGINS=https://syncsteel.app,https://fs-web-production-33b435c3.up.railway.app,http://localhost:5173,http://127.0.0.1:5173" --service api
 ```
 
-**Phase 4 watch paths** (set them before Phase 4 merges, so its first deploy uses them): the api also watches `src/**`, so its hero summaries follow upstream's `HeroLogic`; fs-web also watches `obr-extension/**`, because it serves the extension.
+**Phase 4 watch paths** (set on 26 Nov 2026, after Phase 4 merged): the api also watches `src/**`, so its hero summaries follow upstream's `HeroLogic`; fs-web also watches `obr-extension/**`, because it serves the extension. **Saving this redeployed both services** on the current commit (a few seconds' downtime for the api), so change Railway settings outside play sessions too.
 
 ```bash
 railway environment edit --json <<'JSON'
