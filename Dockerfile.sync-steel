@@ -24,7 +24,8 @@ WORKDIR /app/obr-extension
 COPY obr-extension/package.json obr-extension/package-lock.json obr-extension/.npmrc ./
 RUN npm ci
 
-COPY obr-extension/index.html obr-extension/background.html obr-extension/picker.html obr-extension/vite.config.ts ./
+# Every page (vite.config.ts lists the ones it builds; spike.html is copied but not built)
+COPY obr-extension/*.html obr-extension/vite.config.ts ./
 COPY obr-extension/public ./public
 COPY obr-extension/src ./src
 # CI type-checks it (npm run build); here there's no root node_modules for the tests' types
