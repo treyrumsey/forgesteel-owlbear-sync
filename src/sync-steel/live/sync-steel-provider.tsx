@@ -2,6 +2,7 @@ import { type LiveStatus, type StampedHero, SyncSteelSocket, stampRev } from '@/
 import { PropsWithChildren, createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useDataManager, useHeroes } from '@/contexts/data-context';
 import { ConnectionSettings } from '@/models/connection-settings';
+import { RemoteHeroes } from '@/sync-steel/live/remote-heroes';
 import { SyncSteelConnection } from '@/sync-steel/logic/sync-steel-connection';
 import { getSyncSteelApiHost } from '@/sync-steel/config';
 import { sameHeroContent } from '@/sync-steel/live/sync-steel-heroes';
@@ -59,6 +60,8 @@ export const SyncSteelProvider = (props: PropsWithChildren<Props>) => {
 					return;
 				}
 				dataManagerRef.current.saveHero(hero).catch(err => console.error('Sync Steel: applying a hero failed', err));
+				// Open live panels take it too (src/sync-steel/panels/)
+				RemoteHeroes.publish(hero);
 			});
 		};
 		const queue = (heroId: string, hero: StampedHero | null) => {

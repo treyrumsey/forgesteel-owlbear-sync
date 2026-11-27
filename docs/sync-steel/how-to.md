@@ -24,7 +24,8 @@ While you're connected to the room, a change saved on one device shows up on the
 
 - **The dot on the Sync Steel button** shows the connection: **green** when live, **grey** while it reconnects. An iPad or phone reconnects by itself when you come back to the app.
 - **Two people changing the same hero at once is fine.** Changes to different things are both kept. Stamina, temporary stamina, recoveries, surges and heroic resources add up, so damage you take while the GM adds temporary stamina counts both. For anything else changed in both places at once, the later save wins.
-- **An open panel doesn't refresh.** A panel such as **Vitals**, or the hero editor, keeps the values it opened with. Changes you make there still save correctly. To see other devices' changes, close it and open it again.
+- **Open panels refresh themselves.** The **Resources**, **Vitals** and **Inventory** panels show changes made on another device or in Owlbear while they're open. The hero editor doesn't: close it and open it again to see them. Changes you make anywhere still save correctly.
+  - To go back to Forge Steel's original panels, turn off **Live panels** on the Sync Steel page, under "This device". They then show other devices' changes only once reopened.
 
 ## Players: a new or lost device
 
@@ -73,7 +74,7 @@ The **Sync Steel** Owlbear extension shows each hero's stamina, recoveries, surg
   - If someone changed the same hero in Forge Steel at the same moment, both changes count: 3 damage on the token and 5 in Forge Steel make 8.
   - The name, maximum stamina and resource name come from Forge Steel only; change those there.
   - If a change can't be saved, Owlbear says so and the token goes back to what Forge Steel has.
-  - **An open panel in Forge Steel** (such as Vitals) shows the change once it's reopened.
+  - **An open Resources, Vitals or Inventory panel in Forge Steel** shows the change straight away (unless **Live panels** is off).
 - **Conditions** show as coloured labels next to the token. Players don't see them on tokens you've hidden. To add or remove one, right-click the token → **Conditions**. Anyone in the Owlbear room can.
 - **The popover** shows whether the room is connected, which device is updating the tokens (yours, while you're in the room) and every linked token in the scene.
 - **To stop:** right-click a token → **Unlink from hero**, or **Disconnect this room** in the popover. Tokens keep the stats they show.

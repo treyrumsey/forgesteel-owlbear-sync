@@ -108,6 +108,9 @@ The local fork (`http://localhost:5173`) may also connect to the deployed api; i
 ## Working rules for this repo
 
 - **Minimal diff to upstream:** add new files only. **Never edit** `src/components/main/main.tsx`, `src/contexts/data-context.tsx`, `src/hooks/use-persistence.ts` or `src/services/storage/warehouse-service.ts`. The only upstream edits are hook lines, guarded by `src/sync-steel/contract.test.ts`: the `/sync-steel` route in `app-routes.tsx` and the footer button in `app-footer.tsx` (Phase 2), and `SyncSteelProvider` wrapping `<Main>` inside `DataManagerProvider` in `src/index.tsx` (Phase 3). No more are planned. Branding is applied at build time; never edit `index.html`, `vite.config.ts` or upstream's `public/` files for it.
+- **Live panels:** the branded build swaps upstream's Resources, Vitals and Inventory drawers for Sync Steel's generated copies, at build time (`src/sync-steel/panels/`; [decisions](./decisions.md#live-panels-27-nov-2026)).
+  - **Never edit a copy by hand:** change `src/sync-steel/panels/live-copy.ts` and run `node scripts/sync-steel/update-live-panels.ts`.
+  - **When upstream changes a drawer,** `panels.test.ts` fails, including on the daily upstream-merge PR. Run the same script, review the diff and commit it.
 - **Layout:**
   ```
   src/sync-steel/     Forge Steel sync module (new files only)
