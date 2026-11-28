@@ -7,42 +7,70 @@
 	</head>
 	<body>
 		<main>
-			<h1>Sync Steel</h1>
 			<p id="not-in-obr" class="warning" hidden>Open this from inside an Owlbear Rodeo room.</p>
 
-			<section>
-				<h2>Status</h2>
-				<dl id="status"><dt>Loading…</dt></dl>
-			</section>
+			<nav class="tabs" role="tablist" aria-label="Sync Steel">
+				<button id="tab-button-conditions" type="button" role="tab" data-tab="conditions" aria-controls="tab-conditions">Conditions</button>
+				<button id="tab-button-sync" type="button" role="tab" data-tab="sync" aria-controls="tab-sync">Sync Steel</button>
+			</nav>
 
-			<section id="connect-section" hidden>
-				<h2>Connect this room</h2>
-				<p>
-					On the Sync Steel page, open <b>GM tools → Owlbear</b>, make a connection and paste it here.
-					It's stored in this Owlbear room, so every client in the room can follow the heroes.
-				</p>
-				<form id="connect-form">
-					<textarea id="connection" rows="3" placeholder="sync-steel-owlbear:…" spellcheck="false" autocomplete="off"></textarea>
-					<div class="buttons">
-						<button id="connect-button" type="submit">Connect</button>
-						<button id="disconnect-button" type="button" hidden>Disconnect this room</button>
+			<div id="tab-conditions" role="tabpanel" aria-labelledby="tab-button-conditions">
+				<div id="selection-view" hidden>
+					<p id="selection-title" class="subhead"></p>
+					<div id="pop-ends"></div>
+					<div id="pop-chips"></div>
+					<form id="custom-form" class="custom">
+						<input id="custom-text" type="text" maxlength="200" placeholder="Custom condition…" aria-label="Custom condition name" autocomplete="off" />
+						<button type="submit">Add</button>
+					</form>
+					<ul id="selection-list" class="token-list"></ul>
+				</div>
+				<div id="overview-view">
+					<div class="overview-head">
+						<p class="subhead">In this scene</p>
+						<button id="clear-eot" type="button" hidden>Clear End of turn</button>
 					</div>
-				</form>
-				<p id="connect-result" class="note"></p>
-			</section>
+					<ul id="overview-list" class="token-list"></ul>
+					<p id="overview-empty" class="note">No conditions on any token.</p>
+					<p class="note">Select tokens to add conditions, or right-click a token and use the chips in its menu.</p>
+				</div>
+			</div>
 
-			<section id="player-note" hidden>
-				<p class="note">The GM connects this room to Sync Steel and links the tokens.</p>
-			</section>
+			<div id="tab-sync" role="tabpanel" aria-labelledby="tab-button-sync" hidden>
+				<section>
+					<h2>Status</h2>
+					<dl id="status"><dt>Loading…</dt></dl>
+				</section>
 
-			<section>
-				<h2>Linked tokens in this scene</h2>
-				<ul id="linked"></ul>
-				<p class="note">
-					As the GM, right-click a hero's token and choose <b>Link to hero</b>. Its Draw Steel Tools stats then follow Forge Steel,
-					and a change made on the token goes to Forge Steel. To add or remove a condition, right-click the token and choose <b>Conditions</b>.
-				</p>
-			</section>
+				<section id="connect-section" hidden>
+					<h2>Connect this room</h2>
+					<p>
+						On the Sync Steel page, open <b>GM tools → Owlbear</b>, make a connection and paste it here.
+						It's stored in this Owlbear room, so every client in the room can follow the heroes.
+					</p>
+					<form id="connect-form">
+						<textarea id="connection" rows="3" placeholder="sync-steel-owlbear:…" spellcheck="false" autocomplete="off"></textarea>
+						<div class="buttons">
+							<button id="connect-button" type="submit">Connect</button>
+							<button id="disconnect-button" type="button" hidden>Disconnect this room</button>
+						</div>
+					</form>
+					<p id="connect-result" class="note"></p>
+				</section>
+
+				<section id="player-note" hidden>
+					<p class="note">The GM connects this room to Sync Steel and links the tokens.</p>
+				</section>
+
+				<section>
+					<h2>Linked tokens in this scene</h2>
+					<ul id="linked"></ul>
+					<p class="note">
+						As the GM, right-click a hero's token and choose <b>Link to hero</b>. Its Draw Steel Tools stats then follow Forge Steel,
+						and a change made on the token goes to Forge Steel. Conditions on a linked token are the hero's.
+					</p>
+				</section>
+			</div>
 		</main>
 		<script type="module" src="/src/popover.ts"></script>
 	</body>

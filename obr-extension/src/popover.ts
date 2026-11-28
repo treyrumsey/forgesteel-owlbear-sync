@@ -2,11 +2,14 @@ import { LOCAL_CHANNEL, ROOM_KEY } from './keys.ts';
 import { type LocalMessage, type Status } from './messages.ts';
 import { parseConnection, readBinding } from './connection.ts';
 import OBR from '@owlbear-rodeo/sdk';
+import { followTheme } from './theme.ts';
+import { startConditionsTab } from './conditions-tab.ts';
 import { testConnection } from './hub-client.ts';
 import './style.css';
 
-// The extension's popover: status, and the GM's connect box. The work happens in the background page
-// (background.ts), which this asks for its status over a LOCAL broadcast.
+// The extension's popover, in two tabs: Conditions (conditions-tab.ts), and Sync Steel: status and the GM's
+// connect box. The work happens in the background page (background.ts), which this asks for its status over a
+// LOCAL broadcast.
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -105,6 +108,36 @@ const disconnect = async () => {
 	say('Disconnected.', true);
 };
 
+// #region Tabs: the last one used on this device, or Conditions; the token menu's ⋯ asks for Conditions
+
+type Tab = 'conditions' | 'sync';
+const TAB_STORAGE = 'sync-steel/tab';
+const MAX_HEIGHT = 520;
+
+const showTab = (tab: Tab) => {
+	localStorage.setItem(TAB_STORAGE, tab);
+	document.querySelectorAll<HTMLButtonElement>('[role="tab"]').forEach(button => {
+		button.setAttribute('aria-selected', String(button.dataset.tab === tab));
+	});
+	element('tab-conditions').hidden = tab !== 'conditions';
+	element('tab-sync').hidden = tab !== 'sync';
+};
+
+document.querySelectorAll<HTMLButtonElement>('[role="tab"]').forEach(button => {
+	button.addEventListener('click', () => showTab(button.dataset.tab as Tab));
+});
+showTab(localStorage.getItem(TAB_STORAGE) === 'sync' ? 'sync' : 'conditions');
+
+// Owlbear's popover is as tall as the content, up to MAX_HEIGHT
+const fitHeight = () => {
+	const height = Math.min(MAX_HEIGHT, Math.ceil(document.querySelector('main')!.getBoundingClientRect().height));
+	OBR.action.setHeight(Math.max(160, height)).catch(() => undefined);
+};
+
+// #endregion
+
+followTheme();
+
 if (!document.referrer && (window.parent === window)) {
 	element('not-in-obr').hidden = false;
 }
@@ -122,7 +155,12 @@ OBR.onReady(async () => {
 		if (message.type === 'status') {
 			render(message.status);
 		}
+		if (message.type === 'conditions.open') {
+			showTab('conditions');
+		}
 	});
+	new ResizeObserver(fitHeight).observe(document.querySelector('main')!);
+	startConditionsTab(role).catch(() => undefined);
 	element('connect-form').addEventListener('submit', connect);
 	element('disconnect-button').addEventListener('click', disconnect);
 

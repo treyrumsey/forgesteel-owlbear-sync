@@ -2,6 +2,52 @@
 
 Decisions that change or refine the [research report](./forgesteel-owlbear-sync-report.md), newest first. Each says what was decided, why, and what it replaced. Setup and current state are in [SETUP.md](./SETUP.md).
 
+## Conditions UI: in-menu chips and an overview (28 Nov 2026)
+
+The Conditions modal needed 6+ clicks for one condition and worked on one linked token at a time. Monsters had no conditions at all; the table added them by hand with token-labels.
+
+The other extensions at the table set the pattern:
+- **Draw Steel Tools** edits stats in a panel embedded in the token menu.
+- Toggle-style status extensions (Condition Markers, Colored Rings, Marked!) apply to the **whole selection**.
+
+Four approaches were weighed:
+- an anchored popover, Condition Markers style;
+- an embed in the token menu;
+- a toolbar tab that follows the selection;
+- an embed plus a toolbar tab.
+
+**The user chose the embed plus a toolbar tab**, that anyone may edit unlinked tokens' conditions, and to leave token-labels' own labels alone.
+
+### The Conditions panel in the token menu
+
+**Decision:** the modal is gone. The **Conditions** menu item is an embed (`conditions-embed.html`) that shows for any selection of characters, linked or not.
+- **What it holds:** an Ends switch (EoT / SE / Until removed, remembered per device, Save ends by default) and a chip for each of Draw Steel's nine conditions.
+- **Chip states:** filled when every selected token has the condition, half filled when some do.
+- **What a click does:** on a filled chip, removes every instance of that condition from every selected token. Otherwise, adds it to the tokens without it (`condition-ops.ts` `planApply`).
+- **Fixed height (136 px):** Owlbear can't resize an embed as it opens. The panel fits a control row and three rows of chips in a menu about 240 px wide.
+- **Theme:** the theme mode goes in the embed's address, and the menu is recreated when the theme changes, as Draw Steel Tools does.
+- **Custom conditions and single removals** didn't fit the fixed height. The panel's **⋯** opens the popover instead.
+
+### The popover's Conditions tab
+
+**Decision:** the popover has two tabs, **Conditions** and **Sync Steel** (the old status page).
+- **With tokens selected:** the same chips, a custom condition box, and each token's conditions with an ✕ each.
+- **With none selected:** every character in the scene that has conditions. Clicking a token's name selects it, and **Clear End of turn** removes every EoT condition. Players don't see hidden tokens there.
+- **Which tab opens:** the last one used on this device, or Conditions when **⋯** opened it.
+
+### Conditions on unlinked tokens
+
+**Decision:** an unlinked token keeps its own conditions under `com.treyrumsey.sync-steel/conditions` (`CONDITIONS_KEY`), in the hero's shape. A linked token's conditions stay the hero's.
+- **Who writes:** the editing client writes the key itself, without the hub, so these conditions work without a connection to Sync Steel.
+- **Labels:** the elected writer makes the labels from the key, with the same `planLabels`. A label that is deleted by hand or no longer matches is redone.
+- **Orphan labels:** a label is an orphan only when its token is neither linked nor holding conditions of its own.
+- **Link to hero** clears the key. The hero's conditions take over, and the writer's next label pass drops the old ones.
+- **token-labels' own labels** on monsters are left alone (the user's choice): they aren't read or adopted.
+
+**Several tokens of one hero** get one patch to the hero.
+
+**Partial failures:** if some tokens couldn't be changed, Owlbear's notification says which share failed and why.
+
 ## Condition labels in token-labels' stack (27 Nov 2026)
 
 Found in the Phase 5 Owlbear test: our condition badges were large, coloured, sized to the grid and drawn at the token's right edge. They looked clunky next to the labels from Seamus Finlayson's **token-labels** extension (github.com/SeamusFinlayson/token-labels, by the author of Draw Steel Tools), which the group also uses.

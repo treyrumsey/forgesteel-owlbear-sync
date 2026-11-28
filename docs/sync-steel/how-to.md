@@ -78,9 +78,15 @@ The **Sync Steel** Owlbear extension shows each hero's stamina, recoveries, surg
 - **Conditions** show as small labels at the token's top-left, such as "Bleeding (EoT)".
   - They look and stack like the **Token Labels** extension's, so labels you add with Token Labels sit in the same stack.
   - Players don't see them on tokens you've hidden.
-  - **To add or remove one:** right-click the token → **Conditions**. Anyone in the Owlbear room can.
-  - **Deleting one in Owlbear doesn't remove the condition.** The label comes back while the hero has it.
-- **The popover** shows whether the room is connected, which device is updating the tokens (yours, while you're in the room) and every linked token in the scene.
+  - **To add or remove one:** right-click the token. The **Conditions** panel in its menu has a chip for each of Draw Steel's nine conditions: click one to add it, click a filled one to remove it. Pick **EoT**, **SE** or **Until removed** above the chips first; your last choice is remembered.
+  - **Several tokens at once:** select them all (drag a box, or Shift-click), then right-click one. A chip is filled when every selected token has that condition, and half filled when only some do. Clicking a half-filled chip adds it to the rest.
+  - **Any token, linked or not:** monsters and other unlinked tokens keep conditions of their own on the token. A linked token's conditions are the hero's, so changing them changes Forge Steel.
+  - **Custom conditions, and removing just one:** click **⋯** in the panel, or open the **Sync Steel** button in the toolbar. Its **Conditions** tab lists each selected token's conditions with an ✕ each, and has a box for a custom condition.
+  - **Clearing up:** with nothing selected, the **Conditions** tab lists every token in the scene that has a condition. Click a name to select that token. **Clear End of turn** removes every EoT condition in the scene at once.
+  - Anyone in the Owlbear room can add and remove conditions.
+  - **Deleting a label in Owlbear doesn't remove the condition.** The label comes back while the token has it.
+  - **Linking a token to a hero** replaces any conditions the token had of its own with the hero's.
+- **The popover** has two tabs: **Conditions** (above), and **Sync Steel**. The Sync Steel tab shows whether the room is connected, which device is updating the tokens (yours, while you're in the room) and every linked token in the scene.
 - **To stop:** right-click a token → **Unlink from hero**, or **Disconnect this room** in the popover. Tokens keep the stats they show.
 
 ### If the server is lost entirely

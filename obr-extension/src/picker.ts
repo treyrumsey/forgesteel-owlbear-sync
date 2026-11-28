@@ -1,8 +1,9 @@
-import { LINK_KEY, LOCAL_CHANNEL, PICKER_MODAL_ID } from './keys.ts';
+import { CONDITIONS_KEY, LINK_KEY, LOCAL_CHANNEL, PICKER_MODAL_ID } from './keys.ts';
 import { newLink, rankHeroes } from './links.ts';
 import type { HeroSummary } from './summary.ts';
 import type { LocalMessage } from './messages.ts';
 import OBR from '@owlbear-rodeo/sdk';
+import { followTheme } from './theme.ts';
 import './style.css';
 
 // The GM's hero picker, opened as a modal by the token's Link to hero menu. The background page holds the
@@ -25,6 +26,8 @@ const link = async (hero: HeroSummary) => {
 	await OBR.scene.items.updateItems([ tokenId ], drafts => {
 		drafts.forEach(draft => {
 			draft.metadata[LINK_KEY] = newLink(hero.heroId);
+			// The hero's conditions take over from any the token had of its own
+			delete draft.metadata[CONDITIONS_KEY];
 		});
 	});
 	await OBR.broadcast.sendMessage(LOCAL_CHANNEL, { type: 'linked', tokenId: tokenId } satisfies LocalMessage, { destination: 'LOCAL' });
@@ -57,6 +60,8 @@ const render = (heroes: HeroSummary[]) => {
 		return item;
 	}));
 };
+
+followTheme();
 
 element('cancel-button').addEventListener('click', () => {
 	close();
