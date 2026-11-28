@@ -1,6 +1,6 @@
 import { CONDITIONS_MODAL_ID, LINK_KEY, LOCAL_CHANNEL } from './keys.ts';
 import { CONDITION_ENDS, CONDITION_TYPES, needsText, newCondition } from './conditions.ts';
-import { conditionColor, conditionLabel } from './badges.ts';
+import { conditionColor, conditionLabel } from './labels.ts';
 import type { LocalMessage } from './messages.ts';
 import OBR from '@owlbear-rodeo/sdk';
 import type { SummaryCondition } from './summary.ts';
@@ -9,7 +9,7 @@ import './style.css';
 
 // The Conditions modal, opened from a linked token's Conditions menu (Phase 5). It shows the hero's conditions
 // from the token's link and asks the background page to add or remove one; the background page sends it to
-// the api, and the token (and its badges) update once the server's summary comes back.
+// the api, and the token (and its labels) update once the server's summary comes back.
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const tokenId = new URLSearchParams(window.location.search).get('token') ?? '';

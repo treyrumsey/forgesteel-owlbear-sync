@@ -8,7 +8,7 @@ export interface TokenLink {
 	heroId: string;
 	// The hero revision whose stats were last written to the token; 0 until the first write
 	syncedRev: number;
-	// Copied from the summary, so every client can draw badges without a connection to the api
+	// Copied from the summary: the writer keeps the token's condition labels to these
 	conditions: SummaryCondition[];
 }
 

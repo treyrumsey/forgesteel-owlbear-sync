@@ -156,7 +156,7 @@ Branch `sync-steel/phase-5`, from `main` plus the Phase 4 handoff commit. Every 
 **To finish:**
 1. **In Owlbear, locally** (needs the user's accounts; steps in [obr-extension/README.md](../../obr-extension/README.md#run-locally)): use a test room with Draw Steel Tools, a GM account and a player account, with the fork against the local api.
    - A DST change to stamina, temporary stamina, recoveries, surges or the resource reaches the Forge Steel sheet within about 3 s.
-   - **Conditions** add and remove, and the badges follow on both clients.
+   - **Conditions** add and remove, and the labels follow on both clients (shared labels in token-labels' stack since 27 Nov 2026).
    - A player's edit is sent once (the api log shows one `Owlbear edit` line).
    - A GM in two tabs doesn't apply an edit twice.
    - Pasting back an old link (an older `syncedRev`) gets the token overwritten, not sent.

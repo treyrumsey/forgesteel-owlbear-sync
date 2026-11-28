@@ -2,6 +2,35 @@
 
 Decisions that change or refine the [research report](./forgesteel-owlbear-sync-report.md), newest first. Each says what was decided, why, and what it replaced. Setup and current state are in [SETUP.md](./SETUP.md).
 
+## Condition labels in token-labels' stack (27 Nov 2026)
+
+Found in the Phase 5 Owlbear test: our condition badges were large, coloured, sized to the grid and drawn at the token's right edge. They looked clunky next to the labels from Seamus Finlayson's **token-labels** extension (github.com/SeamusFinlayson/token-labels, by the author of Draw Steel Tools), which the group also uses.
+
+All three decisions below were the user's.
+
+### Shared labels in token-labels' stack
+
+**What token-labels is** (read at `7228a36`, 9 Apr 2026): no data API and no settings in room data. Each label is a shared Owlbear Label item attached to the token, with id `<tokenId>-label-<time>`. It finds a token's labels by that prefix.
+- **Stacking:** at the token's top-left. Slot 0 sits 15 below the top, slot 1 below it at +50, then slots 2, 3, … go upward at −20, −55, …, 35 apart. A new label takes slot = the number of labels already there.
+- **Its look:** font size 16 (Roboto, weight 400), the SDK's dark background at 90%, text at 87%, corner radius 6 and padding 2 scaled by the grid, no pointer. The size stays the same on screen at any zoom.
+
+**Decision:** each condition is now a **shared Label item in that stack** (`obr-extension/src/labels.ts`), with token-labels' look. The background is plain, with no condition colours, and the wording matches its Draw Steel list: "Bleeding (EoT)", "Dazed (SE)".
+- **Id and tag:** `<tokenId>-label-sync-steel-<conditionId>`, which matches its prefix, so token-labels counts ours. The label is tagged with `{ tokenId, conditionId }` under our `…/badge` metadata key, which token-labels ignores.
+- **Who writes:** only the **elected writer**. It's part of each token write, at most one add, delete and update call per batch, within the writer's budget. Every client sees the labels as ordinary shared items.
+- **Layout:** when the hero's set of conditions changes, ours are packed into the lowest free slots after token-labels' own, so its next label never lands on one of ours. Otherwise ours stay where they are, so a token-labels tidy-up click isn't undone.
+- **Visibility:** labels follow the token's visibility, so a hidden token's labels are hidden from players.
+- **Deleted by hand:** a label deleted while the hero still has the condition **comes back**. Conditions are removed with the **Conditions** menu or in Forge Steel.
+- **Unlink** removes ours; token-labels' own labels stay.
+- **Leftovers:** the old local badges are cleared when a scene opens.
+
+**Why shared items rather than look-alikes drawn on each client:** token-labels can't see local items. A label added by hand would land in the same slot as one of ours.
+
+**No license:** token-labels has none, so nothing is copied. `labels.ts` implements the same visual values and stacking rule itself.
+
+**Contract:** `obr-extension/contract/pins.json` pins token-labels' `src/background/tool.ts`, which holds the id prefix and the layout. The daily external check opens an issue when it changes.
+
+**Replaces** the Phase 4 decision [Condition badges in Phase 4](#condition-badges-in-phase-4) and the report's "local badges" (§4.7, §4.7.2): ours are now shared items, written by one client.
+
 ## Live panels (27 Nov 2026)
 
 Found in the Phase 5 Owlbear test: with the Resources drawer open in Forge Steel, a change made on the token in Owlbear reached the hero page but not the open drawer. That's Phase 3's known limit, "open panels keep their copy": upstream builds each drawer once, and the drawer keeps its own copy of the hero. **No data was lost.** Saves from a stale drawer merge correctly: Owlbear's +1 and two clicks in the drawer made +3 on the server. But the drawer showed the wrong number.
@@ -87,7 +116,7 @@ The first four were confirmed with the user before building; the rest are defaul
 
 **Decision:** a **Conditions** context-menu item on linked tokens, for GM and players, opens a modal (`conditions.html`, plain DOM like the hero picker). It lists the hero's conditions with **Remove**, and adds one with a type, when it ends, and a name for custom and quick conditions.
 
-**Sending:** the background page sends the change at once, against the latest summary. Conditions merge by id, so the base doesn't need to match the token. The badges update when the merged summary comes back; nothing is drawn ahead of the server.
+**Sending:** the background page sends the change at once, against the latest summary. Conditions merge by id, so the base doesn't need to match the token. The labels update when the merged summary comes back; nothing is drawn ahead of the server.
 
 **Why everyone:** Draw Steel Tools lets anyone edit a token's stats; conditions match that.
 
@@ -154,6 +183,8 @@ The first four were confirmed with the user before building; the rest are defaul
 **Railway:** fs-web's watch paths no longer exclude `obr-extension/`.
 
 ### Condition badges in Phase 4
+
+(Replaced on 27 Nov 2026 by [shared labels in token-labels' stack](#condition-labels-in-token-labels-stack-27-nov-2026).)
 
 **Decision:** each Owlbear client draws a coloured label for each condition next to a linked token, as local items attached to it. The conditions come from the token's link, which the writer keeps current. Players don't get badges for tokens the GM has hidden. Adding or removing conditions from Owlbear is Phase 5.
 
