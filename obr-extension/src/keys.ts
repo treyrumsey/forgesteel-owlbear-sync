@@ -9,7 +9,7 @@ export const ROOM_KEY = `${PREFIX}/room`;
 // Token metadata: the hero a token is linked to, the revision last written and the hero's conditions
 export const LINK_KEY = `${PREFIX}/metadata`;
 
-// Local items: condition badges drawn by each client
+// Our condition labels (shared Label items in token-labels' stack): { tokenId, conditionId } in their metadata
 export const BADGE_KEY = `${PREFIX}/badge`;
 
 // Broadcasts between this client's pages (background, popover, hero picker); always LOCAL

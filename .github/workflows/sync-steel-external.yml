@@ -3,6 +3,8 @@ name: Sync Steel external contracts
 # Daily: has anything the Owlbear extension depends on, outside this repo, changed? (report §7)
 # - Draw Steel Tools' token schema (src/types/tokenDataZod.ts): the extension writes DST's token data, and
 #   DST breaks a token whose data fails that schema.
+# - token-labels' tool (src/background/tool.ts): our condition labels join its stack, which depends on its
+#   label id prefix and slot layout.
 # - The latest @owlbear-rodeo/sdk version.
 # The pins are in obr-extension/contract/pins.json. A change opens an issue labelled external-contract (unless
 # one is open already); nothing is changed automatically.
@@ -46,20 +48,29 @@ jobs:
           dst_path=$(jq -r .drawSteelTools.path "$pins")
           dst_pinned=$(jq -r .drawSteelTools.sha256 "$pins")
           sdk_pinned=$(jq -r .owlbearSdk.version "$pins")
+          tl_repo=$(jq -r .tokenLabels.repo "$pins")
+          tl_path=$(jq -r .tokenLabels.path "$pins")
+          tl_pinned=$(jq -r .tokenLabels.sha256 "$pins")
 
           dst_head=$(gh api "repos/$dst_repo/commits/HEAD" --jq '.sha[0:7]')
           dst_now=$(gh api "repos/$dst_repo/contents/$dst_path" -H 'Accept: application/vnd.github.raw' | sha256sum | cut -d' ' -f1)
           sdk_now=$(npm view @owlbear-rodeo/sdk version)
+          tl_head=$(gh api "repos/$tl_repo/commits/HEAD" --jq '.sha[0:7]')
+          tl_now=$(gh api "repos/$tl_repo/contents/$tl_path" -H 'Accept: application/vnd.github.raw' | sha256sum | cut -d' ' -f1)
 
           problems=""
           if [ "$dst_now" != "$dst_pinned" ]; then
             problems+="- **Draw Steel Tools' token schema changed** ([\`$dst_path\` at $dst_head](https://github.com/$dst_repo/blob/$dst_head/$dst_path)). Check \`obr-extension/src/dst-token.ts\` against it, test in Owlbear, then update the hash in \`obr-extension/contract/pins.json\`."$'\n'
+          fi
+          if [ "$tl_now" != "$tl_pinned" ]; then
+            problems+="- **token-labels' tool changed** ([\`$tl_path\` at $tl_head](https://github.com/$tl_repo/blob/$tl_head/$tl_path)). Check its label id prefix (\`<tokenId>-label\`) and slot layout against \`obr-extension/src/labels.ts\`, test in Owlbear, then update the hash in \`obr-extension/contract/pins.json\`."$'\n'
           fi
           if [ "$sdk_now" != "$sdk_pinned" ]; then
             problems+="- **@owlbear-rodeo/sdk $sdk_now is out** (pinned: $sdk_pinned). Read its changelog, update \`obr-extension\`, test in Owlbear, then update \`obr-extension/contract/pins.json\`."$'\n'
           fi
 
           echo "Draw Steel Tools schema: $dst_now (pinned $dst_pinned, head $dst_head)"
+          echo "token-labels tool: $tl_now (pinned $tl_pinned, head $tl_head)"
           echo "Owlbear SDK: $sdk_now (pinned $sdk_pinned)"
           {
             echo 'problems<<EOF'

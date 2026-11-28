@@ -75,7 +75,11 @@ The **Sync Steel** Owlbear extension shows each hero's stamina, recoveries, surg
   - The name, maximum stamina and resource name come from Forge Steel only; change those there.
   - If a change can't be saved, Owlbear says so and the token goes back to what Forge Steel has.
   - **An open Resources, Vitals or Inventory panel in Forge Steel** shows the change straight away (unless **Live panels** is off).
-- **Conditions** show as coloured labels next to the token. Players don't see them on tokens you've hidden. To add or remove one, right-click the token → **Conditions**. Anyone in the Owlbear room can.
+- **Conditions** show as small labels at the token's top-left, such as "Bleeding (EoT)".
+  - They look and stack like the **Token Labels** extension's, so labels you add with Token Labels sit in the same stack.
+  - Players don't see them on tokens you've hidden.
+  - **To add or remove one:** right-click the token → **Conditions**. Anyone in the Owlbear room can.
+  - **Deleting one in Owlbear doesn't remove the condition.** The label comes back while the hero has it.
 - **The popover** shows whether the room is connected, which device is updating the tokens (yours, while you're in the room) and every linked token in the scene.
 - **To stop:** right-click a token → **Unlink from hero**, or **Disconnect this room** in the popover. Tokens keep the stats they show.
 

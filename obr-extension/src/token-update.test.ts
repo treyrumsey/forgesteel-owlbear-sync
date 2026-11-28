@@ -1,6 +1,5 @@
 import { DST_METADATA_KEY, type DstHeroTokenData } from './dst-token.ts';
 import { applyTokenUpdate, clobberedFields, planTokenUpdate, syncedValues } from './token-update.ts';
-import { conditionLabel, layoutBadges } from './badges.ts';
 import { describe, expect, it } from 'vitest';
 import { linkFor, newLink, rankHeroes, readLink } from './links.ts';
 import type { HeroSummary } from './summary.ts';
@@ -115,26 +114,6 @@ describe('electWriter', () => {
 		])?.name).toBe('GM iPad');
 		expect(electWriter([ { connectionId: 'z', role: 'PLAYER', name: 'Remote' }, { connectionId: 'b', role: 'PLAYER', name: 'TV' } ])?.name).toBe('TV');
 		expect(electWriter([])).toBeNull();
-	});
-});
-
-describe('badges', () => {
-	it('labels conditions, with custom text and how they end', () => {
-		expect(conditionLabel({ id: '1', type: 'Bleeding', text: '', ends: 'Save ends' })).toBe('Bleeding (save)');
-		expect(conditionLabel({ id: '2', type: 'Custom Condition', text: 'Hexed', ends: 'Until removed' })).toBe('Hexed');
-		expect(conditionLabel({ id: '3', type: 'Quick Condition', text: 'A very long condition name indeed', ends: 'End of turn' })).toHaveLength(24);
-	});
-
-	it('stacks badges down the token\'s right side with stable ids', () => {
-		const badges = layoutBadges('t1', summary({ conditions: [
-			{ id: 'c1', type: 'Bleeding', text: '', ends: '' },
-			{ id: 'c2', type: 'Prone', text: '', ends: '' }
-		] }).conditions, { min: { x: 0, y: 0 }, max: { x: 150, y: 150 } }, 150);
-
-		expect(badges.map(badge => [ badge.id, badge.text, badge.position ])).toEqual([
-			[ 't1-sync-steel-badge-0', 'Bleeding', { x: 157, y: 0 } ],
-			[ 't1-sync-steel-badge-1', 'Prone', { x: 157, y: 41 } ]
-		]);
 	});
 });
 

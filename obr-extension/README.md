@@ -1,6 +1,6 @@
 # Sync Steel Owlbear extension
 
-The Owlbear Rodeo companion extension for Sync Steel (report §4.7). It shows each linked hero's stamina, max stamina, temporary stamina, recoveries, surges and heroic resource on their **Draw Steel Tools** token, plus condition badges, kept up to date from Forge Steel.
+The Owlbear Rodeo companion extension for Sync Steel (report §4.7). It shows each linked hero's stamina, max stamina, temporary stamina, recoveries, surges and heroic resource on their **Draw Steel Tools** token, plus condition labels in the style and stack of the token-labels extension, kept up to date from Forge Steel.
 
 **Current state (Phase 5):** both ways.
 - **Token → Forge Steel:** a change made on a linked token in Draw Steel Tools (stamina, temporary stamina, recoveries, surges, heroic resource) goes back to the hero.
@@ -13,7 +13,7 @@ The Owlbear Rodeo companion extension for Sync Steel (report §4.7). It shows ea
 
 | Page | Runs | Does |
 |---|---|---|
-| `background.html` (`src/background.ts`) | on every client in the room, all the time | Follows the room's connection, keeps every hero's summary from the api's hub, writes tokens (the elected writer only), sends token edits (the editing player's client only), draws condition badges, and adds the token menus: the GM's **Link to hero** and **Unlink from hero**, and everyone's **Conditions** |
+| `background.html` (`src/background.ts`) | on every client in the room, all the time | Follows the room's connection, keeps every hero's summary from the api's hub, writes tokens and their condition labels (the elected writer only), sends token edits (the editing player's client only), and adds the token menus: the GM's **Link to hero** and **Unlink from hero**, and everyone's **Conditions** |
 | `index.html` (`src/popover.ts`) | the toolbar popover | Status, and the GM's **Connect** box |
 | `picker.html` (`src/picker.ts`) | a modal from **Link to hero** | Lists the room's heroes (name matches first) and links the token |
 | `conditions.html` (`src/conditions-modal.ts`) | a modal from **Conditions** | Lists the hero's conditions with **Remove**, and adds one (type, when it ends, a name for custom ones). The background page sends the change; the token updates once the server's summary comes back |
@@ -24,7 +24,15 @@ The pages talk over a `LOCAL` broadcast (`src/messages.ts`).
 - **Room metadata** `com.treyrumsey.sync-steel/room`: `{ api, token }`, the api address and the room's Owlbear token. Every client in the room can read it, so the token can only read hero summaries (see `server/README.md`).
 - **Token metadata** `com.treyrumsey.sync-steel/metadata`: `{ heroId, syncedRev, conditions }`. The link lives on the token, so it follows the token into every scene, including Party Continuity's copies.
 - **Draw Steel Tools' own data** `com.draw-steel-stat-bubbles/metadata`: only the synced fields are written (`src/dst-token.ts`), never `notes`, `gmOnly` or `heroicResourceButton`.
-- **Condition badges** are local items, drawn by each client; nothing shared is written for them.
+- **Condition labels** (`src/labels.ts`) are shared Label items attached to the token, in [token-labels](https://github.com/SeamusFinlayson/token-labels)' stack.
+  - **Ids:** `<tokenId>-label-sync-steel-<conditionId>`. token-labels counts anything starting `<tokenId>-label`.
+  - **Tag:** `com.treyrumsey.sync-steel/badge` = `{ tokenId, conditionId }`.
+  - **Who writes them:** only the elected writer, alongside the token's stats.
+  - **Its look:** size 16 on a dark background, the same size at any zoom.
+  - **Stacking:** at the token's top-left, at +15, +50, then upward, 35 apart. When the set of conditions changes, ours are packed into the free slots after token-labels' own, and otherwise left where they are.
+  - **Deleted by hand:** one comes back while the hero has the condition.
+  - **On unlink:** ours are removed.
+  - token-labels' tool file is pinned in `contract/pins.json`.
 
 **Writing tokens** (report §4.8, `src/writer.ts`):
 - **One writer:** every client elects the same one (`src/election.ts`): a GM first, then the lowest connection id. Two writers lose about half the updates (spike finding 7).
@@ -86,8 +94,8 @@ npx eslint obr-extension/src
 - **Draw Steel Tools data:** only `src/dst-token.ts` builds it. It:
   - writes only finite numbers and strings (DST's zod 4 schema throws otherwise and breaks the token);
   - patches only the synced fields.
-- **Keep the logic SDK-free** (`dst-token`, `writer`, `token-update`, `forwarding`, `conditions`, `links`, `election`, `badges`, `hub-client`, `connection`, `summary`), so its tests run under the repo's Vitest. Only the four page scripts import the Owlbear SDK.
+- **Keep the logic SDK-free** (`dst-token`, `writer`, `token-update`, `forwarding`, `conditions`, `labels`, `links`, `election`, `hub-client`, `connection`, `summary`), so its tests run under the repo's Vitest. Only the four page scripts import the Owlbear SDK.
 - **Conditions** (`src/conditions.ts`) copy the fork's `ConditionType` and `ConditionEndType`; `server/src/summary.test.ts` fails if they drift.
 - **Sync Steel's own data** goes under our own keys, never inside DST's object: DST drops unknown keys when it writes.
 - **The manifest** is generated by `vite.config.ts`, because its paths depend on where the extension is served. Owlbear refuses a description over 128 characters.
-- **External contracts:** `contract/pins.json` pins DST's schema file and the Owlbear SDK version. `.github/workflows/sync-steel-external.yml` checks them daily and opens an `external-contract` issue when either changes.
+- **External contracts:** `contract/pins.json` pins DST's schema file, token-labels' tool file and the Owlbear SDK version. `.github/workflows/sync-steel-external.yml` checks them daily and opens an `external-contract` issue when one changes.

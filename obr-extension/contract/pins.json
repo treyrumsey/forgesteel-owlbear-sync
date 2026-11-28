@@ -1,10 +1,17 @@
 {
-	"_comment": "What the Owlbear extension was checked against. .github/workflows/sync-steel-external.yml compares these daily; update them only after checking dst-token.ts against the new schema and testing in Owlbear.",
+	"_comment": "What the Owlbear extension was checked against. .github/workflows/sync-steel-external.yml compares these daily; update them only after checking dst-token.ts against the new schema (or labels.ts against token-labels' tool) and testing in Owlbear.",
 	"drawSteelTools": {
 		"repo": "SeamusFinlayson/draw-steel-tools-2",
 		"path": "src/types/tokenDataZod.ts",
 		"commit": "a445eb9",
 		"sha256": "1ab0b438c7f4e652ae7fc98fe9a35f845cc3ae1d0ea557a236fcb939e671bfa0"
+	},
+	"tokenLabels": {
+		"_comment": "Seamus Finlayson's token-labels: our condition labels join its stack (src/labels.ts). Its <tokenId>-label id prefix and its slot layout live in this file.",
+		"repo": "SeamusFinlayson/token-labels",
+		"path": "src/background/tool.ts",
+		"commit": "7228a36",
+		"sha256": "530db3a641cb46a1bcd5e4b333da4138ce5506cf4130e3c36288dce4ad85bc27"
 	},
 	"owlbearSdk": {
 		"package": "@owlbear-rodeo/sdk",

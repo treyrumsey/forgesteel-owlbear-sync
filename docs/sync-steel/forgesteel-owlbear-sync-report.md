@@ -421,6 +421,8 @@ Writes follow the pacing rules in §4.8, re-read the token immediately before wr
 - A context menu lets players add or remove conditions.
 
 > **Phase 5:** a **Conditions** token menu, for the GM and players, opens a modal that sends the change as a `patch`.
+>
+> **27 Nov 2026:** the local badges are replaced by shared labels in the token-labels extension's stack, written by the elected writer ([decisions](./decisions.md#condition-labels-in-token-labels-stack-27-nov-2026)).
 
 **Hosting.** Static files with CORS headers on `manifest.json` and the SVG icons.
 
@@ -445,7 +447,7 @@ Constraints:
 | Complementary | Party Continuity moves tokens between scenes; we keep their stats current | The link lives on the token, so you **link once** and it works in every scene |
 | **Stale restore** | When a scene opens, Party Continuity may write **old** Draw Steel Tools values back | Forward a token change only if its `syncedRev` equals the hero's current revision. Otherwise treat it as a restore and **overwrite it from the server**. Always reconcile from the server after the scene settles. **Phase 5:** the hero's latest *summary* revision, plus no forwarding in the 2 s after the scene opens |
 | Durability overlap | Party Continuity's storage exists only in the GM's browser | The server is authoritative for linked heroes; a lost Party Continuity save costs only token cosmetics |
-| Badges | Attached items aren't carried | Badges are local, redrawn from token data on every scene load |
+| Badges | Attached items aren't carried | Badges are local, redrawn from token data on every scene load. **27 Nov 2026:** shared labels instead, re-created by the writer from the token's link when a scene opens |
 | Closed source | Its internals can't be inspected | No dependency on it; test hands-on in the spike (requires a paid membership) |
 
 ### 4.8 Write pacing and debouncing
