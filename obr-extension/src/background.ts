@@ -1,4 +1,4 @@
-import { BADGE_KEY, CONDITIONS_MENU_ID, CONDITIONS_MODAL_ID, LINK_KEY, LINK_MENU_ID, LOCAL_CHANNEL, PICKER_MODAL_ID, ROOM_KEY, UNLINK_MENU_ID } from './keys.ts';
+import { BADGE_KEY, CONDITIONS_KEY, CONDITIONS_MENU_ID, LINK_KEY, LINK_MENU_ID, LOCAL_CHANNEL, PICKER_MODAL_ID, ROOM_KEY, UNLINK_MENU_ID } from './keys.ts';
 import { type Connection, readBinding } from './connection.ts';
 import { EditQueue, type PatchedTo, type RecentWrite, effectiveRev, forwarderFor, planForward } from './forwarding.ts';
 import type { HeroSummary, SummaryCondition } from './summary.ts';
@@ -10,6 +10,7 @@ import { type PartyMember, electWriter } from './election.ts';
 import { type TokenLink, readLink } from './links.ts';
 import { type TokenWrite, TokenWriter, type WriteOutcome } from './writer.ts';
 import { applyTokenUpdate, clobberedFields, planTokenUpdate, syncedValues } from './token-update.ts';
+import { conditionToken, planApply, readOwnConditions } from './condition-ops.ts';
 
 // Runs on every Owlbear client in the room, with no popover open (manifest background_url). It:
 // - follows the room's binding (ROOM_KEY in room metadata, set from the popover by the GM);
@@ -20,7 +21,10 @@ import { applyTokenUpdate, clobberedFields, planTokenUpdate, syncedValues } from
 // - gives the GM the Link to hero and Unlink token menus;
 // - (Phase 5) sends edits made on a linked token to the api: on the editing player's own client only
 //   (forwarding.ts), one patch per token at a time, holding the writer off that token until it's answered;
-// - gives everyone a Conditions token menu, whose modal (conditions-modal.ts) asks this page to send the change.
+// - gives everyone a Conditions panel in the token menu (conditions-embed.ts), for any selection of tokens, linked
+//   or not. It and the popover's Conditions tab ask this page to make the change: a patch to each linked hero,
+//   and a write of CONDITIONS_KEY on each other token;
+// - on the elected writer only, keeps the condition labels of tokens with conditions of their own, too.
 
 const VERIFY_MS = 1500;
 // After the scene opens, a change to a token is a restore (Party Continuity), not an edit (report §4.7.2)
@@ -28,6 +32,8 @@ const SETTLE_MS = 2000;
 // The longest the writer leaves a token alone while its patch is out
 const HOLD_MS = 10_000;
 const HUB_CHECK_MS = 60_000;
+// The Conditions panel's height in the token menu, in pixels (conditions-embed.html)
+const CONDITIONS_EMBED_HEIGHT = 136;
 
 // The background page has no UI: its log is the GM's way to see what the writer did (the browser console)
 // eslint-disable-next-line no-console
@@ -53,8 +59,10 @@ const lastWritten = new Map<string, string>();
 const recentWrites = new Map<string, RecentWrite>();
 const holds = new Map<string, { editId: string, heroId: string, fromRev: number, waitRev: number | null, timer: ReturnType<typeof setTimeout> }>();
 const patchedTo = new Map<string, PatchedTo>();
-// Condition changes from the Conditions modal, by edit id: the modal's request id
-const conditionEdits = new Map<string, string>();
+// Unlinked tokens with conditions of their own (CONDITIONS_KEY) in the open scene
+const owned = new Map<string, { conditions: SummaryCondition[], visible: boolean }>();
+// Condition patches out, by edit id: what to do with the server's answer (null: none came)
+const conditionEdits = new Map<string, (answer: PatchAnswer | null) => void>();
 let settleUntil = 0;
 let orphanTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -231,7 +239,7 @@ const syncLabels = async (targets: Map<string, SummaryCondition[]>) => {
 		if (isEmptyPlan(plan)) {
 			return;
 		}
-		const visible = tokens.get(tokenId)?.visible ?? true;
+		const visible = tokens.get(tokenId)?.visible ?? owned.get(tokenId)?.visible ?? true;
 		plan.add.forEach(label => add.push(buildConditionLabel(label, dpi, visible)));
 		remove.push(...plan.delete);
 		plan.update.forEach(change => update.set(change.id, change));
@@ -263,7 +271,54 @@ const syncLabels = async (targets: Map<string, SummaryCondition[]>) => {
 	}
 };
 
-// Our labels whose token is no longer linked (or whose condition is gone and the token no longer in a batch)
+// Labels for tokens with conditions of their own: brought in line just after a change, by the writer only
+const ownDirty = new Set<string>();
+let ownTimer: ReturnType<typeof setTimeout> | null = null;
+const syncOwnLabels = (delay = 150) => {
+	if (ownTimer !== null) {
+		return;
+	}
+	ownTimer = setTimeout(async () => {
+		ownTimer = null;
+		if (!writer || !sceneReady || (ownDirty.size === 0)) {
+			return;
+		}
+		const targets = new Map([ ...ownDirty ].filter(id => owned.has(id)).map(id => [ id, owned.get(id)!.conditions ]));
+		ownDirty.clear();
+		try {
+			await syncLabels(targets);
+		} catch (error) {
+			targets.forEach((_, id) => ownDirty.add(id));
+			log(`Couldn't update condition labels${isRateLimit(error) ? ' (rate limited)' : ''}: ${String(error)}`);
+			syncOwnLabels(1000);
+		}
+	}, delay);
+};
+
+// The writer: marks each token with conditions of its own whose labels of ours don't match them (a condition
+// added or removed, or a label deleted by hand, which comes back)
+const checkOwnLabels = (items: Item[]) => {
+	const ours = new Map<string, Set<string>>();
+	items.forEach(item => {
+		const tag = readTag(item.metadata[BADGE_KEY]);
+		if (tag) {
+			ours.set(tag.tokenId, (ours.get(tag.tokenId) ?? new Set()).add(tag.conditionId));
+		}
+	});
+	owned.forEach((own, tokenId) => {
+		const have = ours.get(tokenId) ?? new Set<string>();
+		const want = new Set(own.conditions.map(c => c.id));
+		if ((want.size !== have.size) || [ ...want ].some(id => !have.has(id))) {
+			ownDirty.add(tokenId);
+		}
+	});
+	if (ownDirty.size > 0) {
+		syncOwnLabels();
+	}
+};
+
+// Our labels whose token no longer has conditions: unlinked, its own all gone, or its condition gone and the
+// token no longer in a batch
 const removeOrphanLabels = () => {
 	if (orphanTimer !== null) {
 		return;
@@ -275,7 +330,7 @@ const removeOrphanLabels = () => {
 		}
 		const orphans = await OBR.scene.items.getItems(item => {
 			const tag = readTag(item.metadata[BADGE_KEY]);
-			return (tag !== null) && !tokens.has(tag.tokenId);
+			return (tag !== null) && !tokens.has(tag.tokenId) && !owned.has(tag.tokenId);
 		});
 		if (orphans.length > 0) {
 			await OBR.scene.items.deleteItems(orphans.map(item => item.id)).catch(error => log(`Couldn't remove condition labels: ${String(error)}`));
@@ -313,6 +368,9 @@ const electionChanged = () => {
 		});
 		writer.settle();
 		reconcile();
+		if (sceneReady) {
+			OBR.scene.items.getItems().then(checkOwnLabels).catch(() => undefined);
+		}
 	} else if (!mine && writer) {
 		log('Another client is now the writer');
 		writer.stop();
@@ -411,11 +469,9 @@ const releaseHold = (tokenId: string, applied: boolean) => {
 };
 
 const onAnswer = (answer: PatchAnswer) => {
-	const requestId = conditionEdits.get(answer.editId);
-	if (requestId !== undefined) {
-		conditionEdits.delete(answer.editId);
-		const reason = answer.type === 'reject' ? (REJECTIONS[answer.reason] ?? `the server said ${answer.reason}`) : '';
-		sendLocal({ type: 'conditions.done', requestId: requestId, ok: answer.type === 'ack', reason: reason });
+	const answered = conditionEdits.get(answer.editId);
+	if (answered !== undefined) {
+		answered(answer);
 		return;
 	}
 	const tokenId = [ ...holds.entries() ].find(([ , hold ]) => hold.editId === answer.editId)?.[0];
@@ -494,17 +550,62 @@ const edits = new EditQueue({
 	send: forwardToken
 });
 
-// A change from the Conditions modal: sent at once, against the latest summary (conditions merge by id)
-const changeConditions = (message: Extract<LocalMessage, { type: 'conditions' }>) => {
-	const token = tokens.get(message.tokenId);
-	const summary = token ? hub?.get(token.link.heroId) : null;
-	if (!hub || !summary) {
-		sendLocal({ type: 'conditions.done', requestId: message.requestId, ok: false, reason: 'Sync Steel isn\'t connected' });
+// A change from the Conditions menu or popover tab (condition-ops.ts): a patch to each linked hero, against its
+// latest summary (conditions merge by id), and one write for the tokens with conditions of their own. Answers
+// once all are done.
+const applyConditions = async (message: Extract<LocalMessage, { type: 'conditions.apply' }>) => {
+	const failures: { tokenId: string, reason: string }[] = [];
+	const done = () => {
+		sendLocal({ type: 'conditions.done', requestId: message.requestId, ok: failures.length === 0, reason: failures[0]?.reason ?? '', failures: failures });
+	};
+	const items = sceneReady ? await OBR.scene.items.getItems(message.tokenIds) : [];
+	const plan = planApply(message.op, items.map(conditionToken), () => crypto.randomUUID());
+	if (!plan.ok) {
+		failures.push(...message.tokenIds.map(tokenId => ({ tokenId: tokenId, reason: plan.problem })));
+		done();
 		return;
 	}
-	const editId = `${message.tokenId}:conditions:${message.requestId}`;
-	conditionEdits.set(editId, message.requestId);
-	hub.patch({ heroId: summary.heroId, baseRev: summary.rev, editId: editId, conditions: { add: message.add, remove: message.remove } });
+
+	const own = new Map(plan.ownWrites.map(write => [ write.tokenId, write.conditions ]));
+	const writing = (own.size === 0)
+		? Promise.resolve()
+		: OBR.scene.items.updateItems([ ...own.keys() ], drafts => {
+			drafts.forEach(draft => {
+				const conditions = own.get(draft.id) ?? [];
+				if (conditions.length > 0) {
+					draft.metadata[CONDITIONS_KEY] = conditions;
+				} else {
+					delete draft.metadata[CONDITIONS_KEY];
+				}
+			});
+		}).catch(error => {
+			const reason = isRateLimit(error) ? 'too many changes at once; try again in a moment' : `the token couldn't be changed (${String(error)})`;
+			own.forEach((_, tokenId) => failures.push({ tokenId: tokenId, reason: reason }));
+		});
+
+	const patching = plan.heroPatches.map((patch, index) => new Promise<void>(resolve => {
+		const summary = hub?.get(patch.heroId);
+		if (!hub || !summary) {
+			patch.tokenIds.forEach(tokenId => failures.push({ tokenId: tokenId, reason: 'Sync Steel isn\'t connected' }));
+			resolve();
+			return;
+		}
+		const editId = `${patch.tokenIds[0]}:conditions:${message.requestId}:${index}`;
+		const timer = setTimeout(() => conditionEdits.get(editId)?.(null), HOLD_MS);
+		conditionEdits.set(editId, answer => {
+			clearTimeout(timer);
+			conditionEdits.delete(editId);
+			if (!answer || (answer.type === 'reject')) {
+				const reason = answer ? (REJECTIONS[answer.reason] ?? `the server said ${answer.reason}`) : 'Sync Steel didn\'t answer';
+				patch.tokenIds.forEach(tokenId => failures.push({ tokenId: tokenId, reason: reason }));
+			}
+			resolve();
+		});
+		hub.patch({ heroId: summary.heroId, baseRev: summary.rev, editId: editId, conditions: { add: patch.add, remove: patch.remove } });
+	}));
+
+	await Promise.all([ writing, ...patching ]);
+	done();
 };
 
 // #endregion
@@ -525,9 +626,14 @@ const itemsChanged = (items: Item[]) => {
 	const present = new Set<string>();
 	const ids = new Set(items.map(item => item.id));
 	let orphaned = false;
+	owned.clear();
 	items.forEach(item => {
 		const link = readLink(item.metadata);
 		if (!link) {
+			const own = readOwnConditions(item.metadata[CONDITIONS_KEY]);
+			if (own.length > 0) {
+				owned.set(item.id, { conditions: own, visible: item.visible });
+			}
 			return;
 		}
 		present.add(item.id);
@@ -568,10 +674,11 @@ const itemsChanged = (items: Item[]) => {
 	if (writer) {
 		items.forEach(item => {
 			const tag = readTag(item.metadata[BADGE_KEY]);
-			if (tag && !tokens.has(tag.tokenId)) {
+			if (tag && !tokens.has(tag.tokenId) && !owned.has(tag.tokenId)) {
 				orphaned = true;
 			}
 		});
+		checkOwnLabels(items);
 		// A label of ours missing (deleted by hand, or not made yet): the writer puts it back (decisions.md)
 		tokens.forEach((token, tokenId) => {
 			if (token.link.conditions.some(c => !ids.has(labelId(tokenId, c.id)))) {
@@ -596,6 +703,8 @@ const itemsChanged = (items: Item[]) => {
 const sceneReadyChanged = async (ready: boolean) => {
 	sceneReady = ready;
 	tokens.clear();
+	owned.clear();
+	ownDirty.clear();
 	lastWritten.clear();
 	recentWrites.clear();
 	patchedTo.clear();
@@ -654,27 +763,31 @@ const createMenus = async () => {
 					delete draft.metadata[LINK_KEY];
 				});
 			});
-			OBR.scene.items.getItems(item => unlinked.has(readTag(item.metadata[BADGE_KEY])?.tokenId ?? ''))
+			// (A token with conditions of its own keeps their labels; linking clears those, so it shouldn't have any)
+			const bare = new Set(context.items.filter(item => !(CONDITIONS_KEY in item.metadata)).map(item => item.id));
+			OBR.scene.items.getItems(item => bare.has(readTag(item.metadata[BADGE_KEY])?.tokenId ?? ''))
 				.then(labels => (labels.length > 0 ? OBR.scene.items.deleteItems(labels.map(label => label.id)) : undefined))
 				.catch(error => log(`Couldn't remove condition labels: ${String(error)}`));
 		}
 	});
-	// Everyone: add or remove a linked hero's conditions
-	await OBR.contextMenu.create({
-		id: CONDITIONS_MENU_ID,
-		icons: [ {
-			icon: asset('conditions.svg'),
-			label: 'Conditions',
-			filter: { max: 1, every: [ { key: 'layer', value: 'CHARACTER' }, { key: [ 'metadata', LINK_KEY ], value: undefined, operator: '!=' } ] }
-		} ],
-		onClick: context => {
-			const token = context.items[0];
-			if (token) {
-				OBR.modal.open({ id: CONDITIONS_MODAL_ID, url: `${asset('conditions.html')}?token=${encodeURIComponent(token.id)}`, width: 380, height: 520 });
-			}
-		}
+	await createConditionsMenu((await OBR.theme.getTheme()).mode);
+	OBR.theme.onChange(theme => {
+		createConditionsMenu(theme.mode).catch(() => undefined);
 	});
 };
+
+// Everyone: the Conditions panel, in the menu of any selection of characters, linked or not. Its height is
+// fixed (Owlbear can't resize an embed as it opens): CONDITIONS_EMBED_HEIGHT fits its two rows of controls and
+// three of chips. The theme goes in the address so it opens in the right colours (theme.ts).
+const createConditionsMenu = (mode: 'DARK' | 'LIGHT') => OBR.contextMenu.create({
+	id: CONDITIONS_MENU_ID,
+	icons: [ {
+		icon: asset('conditions.svg'),
+		label: 'Conditions',
+		filter: { every: [ { key: 'layer', value: 'CHARACTER' } ] }
+	} ],
+	embed: { url: `${asset('conditions-embed.html')}?themeMode=${mode}`, height: CONDITIONS_EMBED_HEIGHT }
+});
 
 // #endregion
 
@@ -713,8 +826,8 @@ OBR.onReady(async () => {
 			case 'linked':
 				wantToken(message.tokenId);
 				break;
-			case 'conditions':
-				changeConditions(message);
+			case 'conditions.apply':
+				applyConditions(message).catch(error => log(`Couldn't change conditions: ${String(error)}`));
 				break;
 		}
 	});

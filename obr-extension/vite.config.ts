@@ -56,7 +56,7 @@ export default defineConfig(({ command }) => ({
 				popover: 'index.html',
 				background: 'background.html',
 				picker: 'picker.html',
-				conditions: 'conditions.html'
+				conditionsEmbed: 'conditions-embed.html'
 			}
 		}
 	},

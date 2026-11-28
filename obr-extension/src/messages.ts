@@ -1,4 +1,5 @@
-import type { HeroSummary, SummaryCondition } from './summary.ts';
+import type { ConditionOp } from './condition-ops.ts';
+import type { HeroSummary } from './summary.ts';
 import type { HubStatus } from './hub-client.ts';
 
 // Broadcasts between this client's own pages, on LOCAL_CHANNEL with destination LOCAL
@@ -30,6 +31,9 @@ export type LocalMessage =
 	| { type: 'heroes?' }
 	| { type: 'heroes', heroes: HeroSummary[], synced: boolean }
 	| { type: 'linked', tokenId: string }
-	// From the Conditions modal, and the background page's answer once the server has
-	| { type: 'conditions', requestId: string, tokenId: string, add: SummaryCondition[], remove: string[] }
-	| { type: 'conditions.done', requestId: string, ok: boolean, reason: string };
+	// A change to the conditions of these tokens, from the Conditions menu or popover tab, and the background
+	// page's answer once it's written (tokens of their own) and the server has answered (linked heroes)
+	| { type: 'conditions.apply', requestId: string, tokenIds: string[], op: ConditionOp }
+	| { type: 'conditions.done', requestId: string, ok: boolean, reason: string, failures: { tokenId: string, reason: string }[] }
+	// The Conditions menu's ⋯ button: the popover opens on its Conditions tab
+	| { type: 'conditions.open' };

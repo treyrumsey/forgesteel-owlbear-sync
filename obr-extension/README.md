@@ -13,16 +13,23 @@ The Owlbear Rodeo companion extension for Sync Steel (report §4.7). It shows ea
 
 | Page | Runs | Does |
 |---|---|---|
-| `background.html` (`src/background.ts`) | on every client in the room, all the time | Follows the room's connection, keeps every hero's summary from the api's hub, writes tokens and their condition labels (the elected writer only), sends token edits (the editing player's client only), and adds the token menus: the GM's **Link to hero** and **Unlink from hero**, and everyone's **Conditions** |
-| `index.html` (`src/popover.ts`) | the toolbar popover | Status, and the GM's **Connect** box |
+| `background.html` (`src/background.ts`) | on every client in the room, all the time | Follows the room's connection, keeps every hero's summary from the api's hub, writes tokens and their condition labels (the elected writer only), sends token edits (the editing player's client only), makes condition changes for the other pages, and adds the token menus: the GM's **Link to hero** and **Unlink from hero**, and everyone's **Conditions** panel |
+| `conditions-embed.html` (`src/conditions-embed.ts`) | embedded in the token menu of any selection of characters | The **Conditions** panel: the Ends switch and a chip for each of Draw Steel's nine conditions, filled, half filled or empty across the selection. A click toggles it for every selected token. **⋯** opens the popover on its Conditions tab |
+| `index.html` (`src/popover.ts`, `src/conditions-tab.ts`) | the toolbar popover | Two tabs. **Conditions:** with tokens selected, the same chips, a custom condition, and each token's conditions to remove one by one; with none, every token in the scene with conditions, and **Clear End of turn**. **Sync Steel:** status, and the GM's **Connect** box |
 | `picker.html` (`src/picker.ts`) | a modal from **Link to hero** | Lists the room's heroes (name matches first) and links the token |
-| `conditions.html` (`src/conditions-modal.ts`) | a modal from **Conditions** | Lists the hero's conditions with **Remove**, and adds one (type, when it ends, a name for custom ones). The background page sends the change; the token updates once the server's summary comes back |
+
+**Conditions** (`src/condition-ops.ts`, no SDK, tested):
+- The panel and the tab send `conditions.apply { tokenIds, op }`. The background page answers `conditions.done` once every change is made.
+- A **linked** token's conditions are its hero's. The change goes to the hub as one patch per **hero**, even when several of its tokens are selected. The token and its labels update once the server's summary comes back.
+- **Any other** token keeps its own, under `CONDITIONS_KEY`. It's written straight away, and works without a connection to Sync Steel.
+- Pages share `src/condition-ui.ts` (the selection, chips, Ends switch, a token's conditions) and `src/theme.ts` (Owlbear's light or dark theme).
 
 The pages talk over a `LOCAL` broadcast (`src/messages.ts`).
 
 **Data in Owlbear** (`src/keys.ts`):
 - **Room metadata** `com.treyrumsey.sync-steel/room`: `{ api, token }`, the api address and the room's Owlbear token. Every client in the room can read it, so the token can only read hero summaries (see `server/README.md`).
 - **Token metadata** `com.treyrumsey.sync-steel/metadata`: `{ heroId, syncedRev, conditions }`. The link lives on the token, so it follows the token into every scene, including Party Continuity's copies.
+- **Token metadata** `com.treyrumsey.sync-steel/conditions`: an unlinked token's own conditions, in the same shape as a hero's. **Link to hero** clears it.
 - **Draw Steel Tools' own data** `com.draw-steel-stat-bubbles/metadata`: only the synced fields are written (`src/dst-token.ts`), never `notes`, `gmOnly` or `heroicResourceButton`.
 - **Condition labels** (`src/labels.ts`) are shared Label items attached to the token, in [token-labels](https://github.com/SeamusFinlayson/token-labels)' stack.
   - **Ids:** `<tokenId>-label-sync-steel-<conditionId>`. token-labels counts anything starting `<tokenId>-label`.
@@ -30,7 +37,8 @@ The pages talk over a `LOCAL` broadcast (`src/messages.ts`).
   - **Who writes them:** only the elected writer, alongside the token's stats.
   - **Its look:** size 16 on a dark background, the same size at any zoom.
   - **Stacking:** at the token's top-left, at +15, +50, then upward, 35 apart. When the set of conditions changes, ours are packed into the free slots after token-labels' own, and otherwise left where they are.
-  - **Deleted by hand:** one comes back while the hero has the condition.
+  - **Unlinked tokens** with conditions of their own get the same labels, also written by the elected writer only.
+  - **Deleted by hand:** one comes back while the token has the condition.
   - **On unlink:** ours are removed.
   - token-labels' tool file is pinned in `contract/pins.json`.
 
